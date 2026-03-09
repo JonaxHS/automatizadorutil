@@ -8,14 +8,18 @@ import { crearNavegadorConSesion, guardarSesion, estaAutenticado } from './auth.
  */
 export async function generarGuion(tema) {
   console.log('Iniciando generacion de guion con Qwen AI...');
+  console.log(`Abriendo chat configurado: ${config.qwenChatUrl}`);
 
   const { browser, context, page } = await crearNavegadorConSesion(config.headless);
 
   try {
     await page.goto(config.qwenChatUrl, {
-      waitUntil: 'networkidle',
+      waitUntil: 'domcontentloaded',
       timeout: config.timeouts.navigation
     });
+    
+    // Esperar a que la página cargue completamente
+    await page.waitForTimeout(3000);
 
     const indicadoresAuth = [
       '[aria-label*="user"]',
@@ -67,15 +71,9 @@ export async function generarGuion(tema) {
       throw new Error('No se encontro el campo de entrada del chat en Qwen.');
     }
 
-    const prompt = `Crea un guion de video de aproximadamente ${config.video.duracion} segundos sobre: ${tema}
-
-El guion debe:
-- Ser atractivo y facil de entender
-- Tener un inicio impactante
-- Incluir informacion valiosa
-- Terminar con un llamado a la accion
-
-Solo proporciona el texto del guion, sin explicaciones adicionales.`;
+    // Solo enviar el tema - el chat ya tiene las instrucciones configuradas
+    const prompt = tema;
+    console.log(`Enviando tema al chat: ${tema}`);
 
     // Hacer click para activar el campo
     console.log('Haciendo click en el campo de entrada...');
