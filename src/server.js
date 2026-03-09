@@ -232,8 +232,10 @@ app.post('/api/test-qwen', async (req, res) => {
       fs.mkdirSync('guiones', { recursive: true });
     }
 
-    const guion = await generarGuion(tema);
-    
+    const resultadoQwen = await generarGuion(tema);
+    const guion = typeof resultadoQwen === 'string' ? resultadoQwen : resultadoQwen.guion;
+    const descripcion = typeof resultadoQwen === 'string' ? '' : resultadoQwen.descripcion;
+
     emitirEstado('Guion generado exitosamente con Qwen', 100, 'success');
     
     // Guardar guion
@@ -245,12 +247,14 @@ app.post('/api/test-qwen', async (req, res) => {
     estadoAutomatizacion.ultimoGuion = {
       archivo: nombreArchivo,
       contenido: guion,
+      descripcion,
       fecha: new Date().toISOString()
     };
 
     res.json({
       exito: true,
-      guion: guion,
+      guion,
+      descripcion,
       archivo: nombreArchivo,
       longitud: guion.length
     });
@@ -314,7 +318,9 @@ async function ejecutarAutomatizacion() {
     emitirEstado('Generando guion con Qwen AI...', 10, 'info');
     
     // PASO 1: Generar guion
-    const guion = await generarGuion(config.video.tema);
+    const resultadoQwen = await generarGuion(config.video.tema);
+    const guion = typeof resultadoQwen === 'string' ? resultadoQwen : resultadoQwen.guion;
+    const descripcion = typeof resultadoQwen === 'string' ? '' : resultadoQwen.descripcion;
     
     emitirEstado('Guion generado exitosamente', 40, 'success');
     
@@ -328,6 +334,7 @@ async function ejecutarAutomatizacion() {
     estadoAutomatizacion.ultimoGuion = {
       archivo: nombreArchivo,
       contenido: guion,
+      descripcion,
       fecha: new Date().toISOString()
     };
     

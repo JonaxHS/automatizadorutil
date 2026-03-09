@@ -1,10 +1,52 @@
 import { config } from '../config.js';
 import { crearNavegadorConSesion, guardarSesion, estaAutenticado } from './auth.js';
 
+function quitarBloquesCodigo(texto) {
+  if (!texto) return '';
+
+  return texto
+    .replace(/^```[a-zA-Z0-9_-]*\s*\n?/gm, '')
+    .replace(/\n?```\s*$/gm, '')
+    .trim();
+}
+
+function extraerSeccionesQwen(textoCompleto) {
+  const texto = (textoCompleto || '').replace(/\r/g, '').trim();
+
+  const guionMatch = texto.match(
+    /(?:^|\n)(?:#{1,6}\s*)?📜\s*Guion[^\n:]*:?\s*\n?([\s\S]*?)(?=\n(?:#{1,6}\s*)?(?:✅\s*Detalles|🎥\s*Sugerencias|💬\s*Comentario|🚀\s*Dato\s*clave|📥|🎉|$))/i
+  );
+
+  const descripcionMatch = texto.match(
+    /(?:^|\n)(?:#{1,6}\s*)?📝\s*Descripción\s*:?\s*\n?([\s\S]*?)(?=\n(?:#{1,6}\s*)?(?:📜\s*Guion|✅\s*Detalles|🎥\s*Sugerencias|💬\s*Comentario|🚀\s*Dato\s*clave|📥|🎉|$))/i
+  );
+
+  let guion = guionMatch ? quitarBloquesCodigo(guionMatch[1]) : '';
+  let descripcion = descripcionMatch ? descripcionMatch[1].trim() : '';
+
+  if (!guion) {
+    const fallbackGuion = texto.match(
+      /(Imagina[\s\S]*?)(?=\n(?:✅\s*Detalles|🎥\s*Sugerencias|💬\s*Comentario|🚀\s*Dato\s*clave|📥|🎉|$))/i
+    );
+    guion = fallbackGuion ? quitarBloquesCodigo(fallbackGuion[1]) : texto;
+  }
+
+  if (!descripcion) {
+    const hashtags = texto.match(/(^#[^\n]+(?:\n#[^\n]+)*)/m);
+    descripcion = hashtags ? hashtags[1].trim() : '';
+  }
+
+  return {
+    guion: guion.trim(),
+    descripcion: descripcion.trim(),
+    respuestaCompleta: texto
+  };
+}
+
 /**
  * Genera un guion usando Qwen AI.
  * @param {string} tema
- * @returns {Promise<string>}
+ * @returns {Promise<{guion: string, descripcion: string, respuestaCompleta: string}>}
  */
 export async function generarGuion(tema) {
   console.log('Iniciando generacion de guion con Qwen AI...');
@@ -149,7 +191,7 @@ export async function generarGuion(tema) {
         .trim();
     };
 
-    let guion = '';
+    let respuestaQwen = '';
     let intentos = 0;
     const maxIntentos = 30; // 30 intentos x 3 segundos = 90 segundos máximo
 
@@ -217,13 +259,13 @@ export async function generarGuion(tema) {
           })();
 
         if (respuesta && respuesta.texto) {
-          guion = respuesta.texto;
-          console.log(`Guion capturado con selector '${respuesta.selector}': ${respuesta.texto.substring(0, 150)}...`);
-          console.log(`Longitud del guion: ${guion.length} caracteres`);
+          respuestaQwen = respuesta.texto;
+          console.log(`Respuesta capturada con selector '${respuesta.selector}': ${respuesta.texto.substring(0, 150)}...`);
+          console.log(`Longitud de respuesta: ${respuestaQwen.length} caracteres`);
 
           // Verificar si sigue generando
           const isGenerating = await page.$('[aria-label*="generating"], [class*="generating"], [class*="typing"], [class*="loading"]');
-          if (!isGenerating && guion.length > 100) {
+          if (!isGenerating && respuestaQwen.length > 100) {
             console.log('Generación completada');
             await page.screenshot({ path: 'screenshots/qwen-respuesta-capturada.png', fullPage: true });
             break;
@@ -241,19 +283,25 @@ export async function generarGuion(tema) {
       intentos += 1;
     }
 
-    if (!guion) {
+    if (!respuestaQwen) {
       await page.screenshot({ path: 'screenshots/qwen-error-no-response.png', fullPage: true });
       
       // Debug: intentar capturar cualquier texto visible
       const bodyText = await page.evaluate(() => document.body.innerText);
       console.log('Texto de página completo (primeros 500 chars):', bodyText.substring(0, 500));
       
-      throw new Error('No se pudo extraer el guion de Qwen AI');
+      throw new Error('No se pudo extraer respuesta de Qwen AI');
     }
 
-    console.log('Guion generado correctamente');
+    const extraido = extraerSeccionesQwen(respuestaQwen);
+    if (!extraido.guion) {
+      throw new Error('No se pudo separar la sección de guion desde la respuesta de Qwen');
+    }
+
+    console.log(`Guion separado correctamente (${extraido.guion.length} chars)`);
+    console.log(`Descripcion separada (${extraido.descripcion.length} chars)`);
     await page.screenshot({ path: 'screenshots/qwen-4-success.png', fullPage: true });
-    return guion;
+    return extraido;
 
   } catch (error) {
     console.error('Error al generar guion:', error.message);

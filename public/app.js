@@ -26,6 +26,7 @@ const progressFill = document.getElementById('progressFill');
 const progressText = document.getElementById('progressText');
 const logsContainer = document.getElementById('logs');
 const guionPreview = document.getElementById('guionPreview');
+const descripcionPreview = document.getElementById('descripcionPreview');
 const videoResult = document.getElementById('videoResult');
 const historialContainer = document.getElementById('historial');
 const guionesLista = document.getElementById('guionesLista');
@@ -275,7 +276,8 @@ btnTestQwen.addEventListener('click', async () => {
         if (response.ok) {
             mostrarNotificacion('✅ Guion generado con Qwen exitosamente', 'success');
             resultsPanel.style.display = 'block';
-            guionPreview.innerHTML = `<p>${result.guion.replace(/\n/g, '<br>')}</p>`;
+            guionPreview.textContent = result.guion || 'Sin guion detectado';
+            descripcionPreview.textContent = result.descripcion || 'Sin descripción detectada';
             cargarGuiones();
         } else {
             mostrarNotificacion(`Error: ${result.error}`, 'error');
@@ -388,7 +390,6 @@ function habilitarControles() {
     btnIniciar.disabled = false;
     btnGuardarConfig.disabled = false;
     inputTema.disabled = false;
-    inputTema.disabled = false;
 }
 
 // Mostrar resultados
@@ -399,11 +400,12 @@ async function mostrarResultados() {
         
         resultsPanel.style.display = 'block';
         
-        // Mostrar guion
+        // Mostrar guion y descripcion
         if (estado.ultimoGuion) {
-            guionPreview.innerHTML = `<p>${estado.ultimoGuion.contenido}</p>`;
+            guionPreview.textContent = estado.ultimoGuion.contenido || '';
+            descripcionPreview.textContent = estado.ultimoGuion.descripcion || 'Sin descripción detectada';
             btnCopiarGuion.style.display = 'inline-flex';
-            btnCopiarGuion.onclick = () => copiarTexto(estado.ultimoGuion.contenido);
+            btnCopiarGuion.onclick = () => copiarTexto(estado.ultimoGuion.contenido || '');
         }
         
         // Mostrar video
