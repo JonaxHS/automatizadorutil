@@ -55,10 +55,28 @@ export async function generarGuion(tema) {
     let selectorUsado = null;
     for (const selector of selectors) {
       try {
-        chatInput = await page.waitForSelector(selector, { timeout: 5000, state: 'visible' });
-        if (chatInput) {
+        const candidatos = await page.$$(selector);
+        for (const candidato of candidatos) {
+          const esMonaco = await candidato.evaluate((el) => {
+            return Boolean(el.closest('.monaco-editor, .monaco-scrollable-element, [data-mprt]'));
+          });
+
+          if (esMonaco) {
+            continue;
+          }
+
+          const visible = await candidato.isVisible();
+          if (!visible) {
+            continue;
+          }
+
+          chatInput = candidato;
           selectorUsado = selector;
           console.log(`Campo de entrada encontrado con selector: ${selector}`);
+          break;
+        }
+
+        if (chatInput) {
           break;
         }
       } catch (error) {
@@ -75,10 +93,10 @@ export async function generarGuion(tema) {
     const prompt = tema;
     console.log(`Enviando tema al chat: ${tema}`);
 
-    // Hacer click para activar el campo
-    console.log('Haciendo click en el campo de entrada...');
-    await chatInput.click();
-    await page.waitForTimeout(1000);
+    // Evitar click de mouse: usar focus por teclado/DOM para prevenir interceptores
+    console.log('Activando campo de entrada con focus (sin click)...');
+    await chatInput.focus();
+    await page.waitForTimeout(300);
 
     // Verificar si es contenteditable
     const isContentEditable = await page.evaluate((sel) => {
@@ -98,50 +116,15 @@ export async function generarGuion(tema) {
       }, selectorUsado, prompt);
     } else {
       console.log('Usando type() para escribir el prompt');
-      await chatInput.type(prompt, { delay: 50 });
+      await chatInput.type(prompt, { delay: 30 });
     }
 
     await page.screenshot({ path: 'screenshots/qwen-2-prompt-filled.png', fullPage: true });
 
-    const sendButtons = [
-      'button[type="submit"]',
-      'button[aria-label*="send"]',
-      'button[aria-label*="Send"]',
-      'button:has-text("Send")',
-      'button:has-text("Enviar")',
-      'button:has-text("发送")',
-      '[aria-label*="Send"]',
-      '[aria-label*="submit"]',
-      '[data-testid*="send"]',
-      'button[class*="send"]',
-      'button svg' // Muchos usan solo un ícono
-    ];
-
-    let sent = false;
-    for (const selector of sendButtons) {
-      try {
-        const button = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
-        if (button) {
-          const isEnabled = await button.isEnabled();
-          if (isEnabled) {
-            await button.click();
-            console.log(`Mensaje enviado con selector: ${selector}`);
-            sent = true;
-            break;
-          }
-        }
-      } catch (error) {
-        continue;
-      }
-    }
-
-    if (!sent) {
-      console.log('No se encontró botón de envío, usando Enter');
-      await chatInput.press('Enter');
-      await page.waitForTimeout(500);
-      // Intentar Ctrl+Enter por si acaso
-      await chatInput.press('Control+Enter');
-    }
+    console.log('Enviando mensaje con teclado (Enter / Ctrl+Enter)...');
+    await chatInput.press('Enter');
+    await page.waitForTimeout(500);
+    await chatInput.press('Control+Enter').catch(() => {});
 
     await page.screenshot({ path: 'screenshots/qwen-3-message-sent.png', fullPage: true });
     
