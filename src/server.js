@@ -179,7 +179,7 @@ app.post('/api/auth/cancel', async (req, res) => {
 
 // Actualizar configuración
 app.post('/api/config', (req, res) => {
-  const { tema, duracion } = req.body;
+  const { tema, duracion, qwenChatUrl } = req.body;
   
   if (estadoAutomatizacion.ejecutando) {
     return res.status(400).json({ error: 'No se puede cambiar la configuración mientras se ejecuta una automatización' });
@@ -194,8 +194,20 @@ app.post('/api/config', (req, res) => {
     config.video.duracion = parseInt(duracion);
     process.env.VIDEO_DURACION = duracion.toString();
   }
+
+  if (qwenChatUrl) {
+    config.qwenChatUrl = qwenChatUrl;
+    process.env.QWEN_CHAT_URL = qwenChatUrl;
+  }
   
-  res.json({ mensaje: 'Configuración actualizada', config: { tema: config.video.tema, duracion: config.video.duracion } });
+  res.json({
+    mensaje: 'Configuración actualizada',
+    config: {
+      tema: config.video.tema,
+      duracion: config.video.duracion,
+      qwenChatUrl: config.qwenChatUrl
+    }
+  });
 });
 
 // Iniciar automatización

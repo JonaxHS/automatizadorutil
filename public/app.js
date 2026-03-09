@@ -15,6 +15,7 @@ const btnAuthRefresh = document.getElementById('btnAuthRefresh');
 
 const inputTema = document.getElementById('tema');
 const inputDuracion = document.getElementById('duracion');
+const inputQwenChatUrl = document.getElementById('qwenChatUrl');
 
 const statusPanel = document.getElementById('statusPanel');
 const resultsPanel = document.getElementById('resultsPanel');
@@ -205,6 +206,7 @@ async function cargarConfiguracion() {
         
         inputTema.value = config.tema;
         inputDuracion.value = config.duracion;
+        inputQwenChatUrl.value = config.qwenChatUrl || '';
     } catch (error) {
         console.error('Error al cargar configuración:', error);
     }
@@ -214,9 +216,15 @@ async function cargarConfiguracion() {
 btnGuardarConfig.addEventListener('click', async () => {
     const tema = inputTema.value.trim();
     const duracion = parseInt(inputDuracion.value);
+    const qwenChatUrl = inputQwenChatUrl.value.trim();
     
     if (!tema) {
         mostrarNotificacion('Por favor, ingresa un tema', 'error');
+        return;
+    }
+
+    if (!qwenChatUrl || !qwenChatUrl.startsWith('http')) {
+        mostrarNotificacion('Ingresa una URL valida para el chat de Qwen', 'error');
         return;
     }
     
@@ -224,7 +232,7 @@ btnGuardarConfig.addEventListener('click', async () => {
         const response = await fetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tema, duracion })
+            body: JSON.stringify({ tema, duracion, qwenChatUrl })
         });
         
         const result = await response.json();
