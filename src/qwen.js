@@ -48,10 +48,12 @@ export async function generarGuion(tema) {
     ];
 
     let chatInput = null;
+    let selectorUsado = null;
     for (const selector of selectors) {
       try {
         chatInput = await page.waitForSelector(selector, { timeout: 5000, state: 'visible' });
         if (chatInput) {
+          selectorUsado = selector;
           console.log(`Campo de entrada encontrado con selector: ${selector}`);
           break;
         }
@@ -75,7 +77,32 @@ El guion debe:
 
 Solo proporciona el texto del guion, sin explicaciones adicionales.`;
 
-    await chatInput.fill(prompt);
+    // Hacer click para activar el campo
+    console.log('Haciendo click en el campo de entrada...');
+    await chatInput.click();
+    await page.waitForTimeout(1000);
+
+    // Verificar si es contenteditable
+    const isContentEditable = await page.evaluate((sel) => {
+      const elem = document.querySelector(sel);
+      return elem && elem.getAttribute('contenteditable') === 'true';
+    }, selectorUsado);
+
+    if (isContentEditable) {
+      console.log('Campo contenteditable detectado, usando evaluate para escribir');
+      await page.evaluate((sel, text) => {
+        const elem = document.querySelector(sel);
+        elem.focus();
+        elem.textContent = text;
+        // Disparar eventos para simular escritura
+        elem.dispatchEvent(new Event('input', { bubbles: true }));
+        elem.dispatchEvent(new Event('change', { bubbles: true }));
+      }, selectorUsado, prompt);
+    } else {
+      console.log('Usando type() para escribir el prompt');
+      await chatInput.type(prompt, { delay: 50 });
+    }
+
     await page.screenshot({ path: 'screenshots/qwen-2-prompt-filled.png', fullPage: true });
 
     const sendButtons = [
@@ -87,18 +114,23 @@ Solo proporciona el texto del guion, sin explicaciones adicionales.`;
       'button:has-text("发送")',
       '[aria-label*="Send"]',
       '[aria-label*="submit"]',
-      '[data-testid*="send"]'
+      '[data-testid*="send"]',
+      'button[class*="send"]',
+      'button svg' // Muchos usan solo un ícono
     ];
 
     let sent = false;
     for (const selector of sendButtons) {
       try {
-        const button = await page.waitForSelector(selector, { timeout: 3000 });
+        const button = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
         if (button) {
-          await button.click();
-          console.log(`Mensaje enviado con selector: ${selector}`);
-          sent = true;
-          break;
+          const isEnabled = await button.isEnabled();
+          if (isEnabled) {
+            await button.click();
+            console.log(`Mensaje enviado con selector: ${selector}`);
+            sent = true;
+            break;
+          }
         }
       } catch (error) {
         continue;
@@ -108,6 +140,9 @@ Solo proporciona el texto del guion, sin explicaciones adicionales.`;
     if (!sent) {
       console.log('No se encontró botón de envío, usando Enter');
       await chatInput.press('Enter');
+      await page.waitForTimeout(500);
+      // Intentar Ctrl+Enter por si acaso
+      await chatInput.press('Control+Enter');
     }
 
     await page.screenshot({ path: 'screenshots/qwen-3-message-sent.png', fullPage: true });
