@@ -3,6 +3,7 @@ const socket = io();
 
 // Elementos del DOM
 const btnIniciar = document.getElementById('btnIniciar');
+const btnTestQwen = document.getElementById('btnTestQwen');
 const btnGuardarConfig = document.getElementById('btnGuardarConfig');
 const btnActualizarGuiones = document.getElementById('btnActualizarGuiones');
 const btnCopiarGuion = document.getElementById('btnCopiarGuion');
@@ -244,6 +245,50 @@ btnGuardarConfig.addEventListener('click', async () => {
         }
     } catch (error) {
         mostrarNotificacion('Error al guardar configuración', 'error');
+    }
+});
+
+// Probar solo generación de guion con Qwen
+btnTestQwen.addEventListener('click', async () => {
+    const tema = inputTema.value.trim();
+    
+    if (!tema) {
+        mostrarNotificacion('Por favor, ingresa un tema para el guion', 'error');
+        return;
+    }
+
+    if (estadoActual.ejecutando) {
+        mostrarNotificacion('Ya hay una operación en ejecución', 'warning');
+        return;
+    }
+    
+    try {
+        btnTestQwen.disabled = true;
+        btnIniciar.disabled = true;
+        statusPanel.style.display = 'block';
+        
+        const response = await fetch('/api/test-qwen', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tema })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            mostrarNotificacion('✅ Guion generado con Qwen exitosamente', 'success');
+            resultsPanel.style.display = 'block';
+            guionPreview.innerHTML = `<p>${result.guion.replace(/\n/g, '<br>')}</p>`;
+            cargarGuiones();
+        } else {
+            mostrarNotificacion(`Error: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        mostrarNotificacion('Error al probar Qwen', 'error');
+        console.error(error);
+    } finally {
+        btnTestQwen.disabled = false;
+        btnIniciar.disabled = false;
     }
 });
 

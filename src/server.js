@@ -210,6 +210,63 @@ app.post('/api/config', (req, res) => {
   });
 });
 
+// Probar solo generación de guion con Qwen
+app.post('/api/test-qwen', async (req, res) => {
+  if (estadoAutomatizacion.ejecutando) {
+    return res.status(400).json({ error: 'Ya hay una operación en ejecución' });
+  }
+
+  const { tema } = req.body;
+  if (!tema) {
+    return res.status(400).json({ error: 'El tema es requerido' });
+  }
+
+  estadoAutomatizacion.ejecutando = true;
+  estadoAutomatizacion.ultimoError = null;
+
+  try {
+    emitirEstado('Probando generación de guion con Qwen AI...', 10, 'info');
+    
+    // Crear carpeta si no existe
+    if (!fs.existsSync('guiones')) {
+      fs.mkdirSync('guiones', { recursive: true });
+    }
+
+    const guion = await generarGuion(tema);
+    
+    emitirEstado('Guion generado exitosamente con Qwen', 100, 'success');
+    
+    // Guardar guion
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const nombreArchivo = `guion-test-${timestamp}.txt`;
+    const rutaGuion = path.join('guiones', nombreArchivo);
+    fs.writeFileSync(rutaGuion, guion, 'utf-8');
+    
+    estadoAutomatizacion.ultimoGuion = {
+      archivo: nombreArchivo,
+      contenido: guion,
+      fecha: new Date().toISOString()
+    };
+
+    res.json({
+      exito: true,
+      guion: guion,
+      archivo: nombreArchivo,
+      longitud: guion.length
+    });
+  } catch (error) {
+    console.error('Error al generar guion:', error);
+    estadoAutomatizacion.ultimoError = {
+      mensaje: error.message,
+      fecha: new Date().toISOString()
+    };
+    emitirEstado(`Error: ${error.message}`, 0, 'error');
+    res.status(500).json({ error: error.message });
+  } finally {
+    estadoAutomatizacion.ejecutando = false;
+  }
+});
+
 // Iniciar automatización
 app.post('/api/iniciar', async (req, res) => {
   if (estadoAutomatizacion.ejecutando) {
