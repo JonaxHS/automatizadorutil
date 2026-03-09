@@ -21,6 +21,14 @@ export async function generarGuion(tema) {
     // Esperar a que la página cargue completamente
     await page.waitForTimeout(3000);
 
+    // Permisos de portapapeles para poder leer el contenido copiado por Qwen
+    try {
+      const origin = new URL(config.qwenChatUrl).origin;
+      await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
+    } catch (error) {
+      console.log('No se pudieron otorgar permisos de portapapeles:', error.message);
+    }
+
     const indicadoresAuth = [
       '[aria-label*="user"]',
       '[data-testid*="user"]',
@@ -131,55 +139,82 @@ export async function generarGuion(tema) {
     console.log('Esperando respuesta de Qwen AI (puede tardar 10-60 segundos)...');
     await page.waitForTimeout(12000); // Espera inicial de 12 segundos
 
+    const limpiarTextoPlano = (texto) => {
+      return texto
+        .split('\n')
+        // El renderizado HTML a veces inyecta numeros de linea de bloques de codigo
+        .filter((linea) => !/^\s*\d+\s*$/.test(linea))
+        .join('\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    };
+
     let guion = '';
     let intentos = 0;
     const maxIntentos = 30; // 30 intentos x 3 segundos = 90 segundos máximo
 
     while (intentos < maxIntentos) {
       try {
-        // Buscar mensajes del asistente (varios selectores para diferentes versiones de Qwen)
-        const respuesta = await page.evaluate(() => {
-          // Buscar por diferentes patrones
-          const selectores = [
+        // Intento 1: usar boton Copiar del ultimo mensaje del asistente para mantener formato original
+        const copiado = await page.evaluate(async () => {
+          const contenedorSelectores = [
             '[class*="AssistantMessage"]',
             '[data-role="assistant"]',
-            '[class*="markdown-body"]',
             'div[class*="message"][class*="assistant"]',
             'div[class*="answer"]',
-            'div[class*="response"][class*="ai"]'
+            'div[class*="response"][class*="ai"]',
+            '[class*="markdown-body"]'
           ];
-          
-          for (const selector of selectores) {
-            const elementos = document.querySelectorAll(selector);
-            if (elementos.length > 0) {
-              const ultimo = elementos[elementos.length - 1];
-              const texto = ultimo.innerText || ultimo.textContent;
-              if (texto && texto.trim().length > 50) {
-                return { texto: texto.trim(), selector };
-              }
+
+          let ultimoContenedor = null;
+          for (const selector of contenedorSelectores) {
+            const encontrados = Array.from(document.querySelectorAll(selector));
+            if (encontrados.length > 0) {
+              ultimoContenedor = encontrados[encontrados.length - 1];
             }
           }
-          
-          // Si no funciona, buscar el div más grande con texto después del prompt del usuario
-          const todos = Array.from(document.querySelectorAll('div'));
-          const conTexto = todos
-            .filter(div => {
-              const texto = div.innerText || div.textContent;
-              return texto && texto.trim().length > 100 && texto.trim().length < 10000;
-            })
-            .sort((a, b) => {
-              const textoA = (a.innerText || a.textContent || '').trim();
-              const textoB = (b.innerText || b.textContent || '').trim();
-              return textoB.length - textoA.length;
-            });
-          
-          if (conTexto.length > 0) {
-            const texto = (conTexto[0].innerText || conTexto[0].textContent).trim();
-            return { texto, selector: 'div-grande' };
+
+          if (!ultimoContenedor) {
+            return { ok: false };
           }
-          
-          return null;
+
+          const textoBase = (ultimoContenedor.innerText || ultimoContenedor.textContent || '').trim();
+          if (textoBase.length < 50) {
+            return { ok: false };
+          }
+
+          const copyBtn = ultimoContenedor.querySelector(
+            'button[aria-label*="Copy"], button[aria-label*="copy"], [data-testid*="copy"], button[title*="Copy"], button[title*="copy"]'
+          ) || ultimoContenedor.querySelector('button');
+
+          if (!copyBtn) {
+            return { ok: false, textoFallback: textoBase, fuente: 'sin-boton-copy' };
+          }
+
+          // Click DOM para evitar interception de pointer events
+          copyBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+          try {
+            const texto = await navigator.clipboard.readText();
+            if (texto && texto.trim().length > 50) {
+              return { ok: true, texto: texto.trim(), fuente: 'clipboard-copy-button' };
+            }
+          } catch {
+            // Ignorar: se usa fallback abajo
+          }
+
+          return { ok: false, textoFallback: textoBase, fuente: 'fallback-innerText' };
         });
+
+        const respuesta = copiado?.ok
+          ? { texto: copiado.texto, selector: copiado.fuente }
+          : (() => {
+            if (copiado?.textoFallback) {
+              return { texto: limpiarTextoPlano(copiado.textoFallback), selector: copiado.fuente || 'fallback' };
+            }
+
+            return null;
+          })();
 
         if (respuesta && respuesta.texto) {
           guion = respuesta.texto;
