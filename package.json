@@ -1,0 +1,29 @@
+{
+  "name": "automatizador-veed",
+  "version": "1.0.0",
+  "description": "Automatizador para generar videos en Veed.io usando guiones de Qwen AI",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "cli": "node src/index.js",
+    "setup-auth": "node src/setup-auth.js",
+    "docker:build": "docker build -t automatizador-veed .",
+    "docker:run": "docker-compose up -d",
+    "docker:stop": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "keywords": ["automatización", "veed.io", "qwen", "video", "ai", "automation"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.41.0",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Authentication & Sessions
+.auth/
+storage-state.json
+
+# Playwright
+playwright-report/
+test-results/
+.playwright/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Generated content
+videos/
+*.mp4
+*.webm
+
+# Screenshots y archivos generados
+screenshots/
+guiones/
+logs/
+
+# Docker
+.dockerignore
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Backups
+*.backup
+backup-*
+

@@ -1,0 +1,409 @@
+// Conectar con el servidor via WebSocket
+const socket = io();
+
+// Elementos del DOM
+const btnIniciar = document.getElementById('btnIniciar');
+const btnGuardarConfig = document.getElementById('btnGuardarConfig');
+const btnActualizarGuiones = document.getElementById('btnActualizarGuiones');
+const btnCopiarGuion = document.getElementById('btnCopiarGuion');
+const btnCopiarGuionModal = document.getElementById('btnCopiarGuionModal');
+
+const inputTema = document.getElementById('tema');
+const inputDuracion = document.getElementById('duracion');
+
+const statusPanel = document.getElementById('statusPanel');
+const resultsPanel = document.getElementById('resultsPanel');
+const statusBadge = document.getElementById('statusBadge');
+const statusText = document.getElementById('statusText');
+const statusMessage = document.getElementById('statusMessage');
+const progressFill = document.getElementById('progressFill');
+const progressText = document.getElementById('progressText');
+const logsContainer = document.getElementById('logs');
+const guionPreview = document.getElementById('guionPreview');
+const videoResult = document.getElementById('videoResult');
+const historialContainer = document.getElementById('historial');
+const guionesLista = document.getElementById('guionesLista');
+const connectionStatus = document.getElementById('connectionStatus');
+
+const modal = document.getElementById('modalGuion');
+const modalClose = document.querySelector('.modal-close');
+const modalTitulo = document.getElementById('modalGuionTitulo');
+const modalContenido = document.getElementById('modalGuionContenido');
+
+// Estado actual
+let estadoActual = {
+    ejecutando: false
+};
+
+// Inicialización
+window.addEventListener('DOMContentLoaded', () => {
+    cargarConfiguracion();
+    cargarHistorial();
+    cargarGuiones();
+});
+
+// WebSocket eventos
+socket.on('connect', () => {
+    console.log('Conectado al servidor');
+    connectionStatus.textContent = '✓';
+    connectionStatus.className = 'connected';
+});
+
+socket.on('disconnect', () => {
+    console.log('Desconectado del servidor');
+    connectionStatus.textContent = '✗';
+    connectionStatus.className = 'disconnected';
+});
+
+socket.on('estado', (data) => {
+    console.log('Estado recibido:', data);
+    actualizarEstado(data);
+});
+
+// Cargar configuración inicial
+async function cargarConfiguracion() {
+    try {
+        const response = await fetch('/api/config');
+        const config = await response.json();
+        
+        inputTema.value = config.tema;
+        inputDuracion.value = config.duracion;
+    } catch (error) {
+        console.error('Error al cargar configuración:', error);
+    }
+}
+
+// Guardar configuración
+btnGuardarConfig.addEventListener('click', async () => {
+    const tema = inputTema.value.trim();
+    const duracion = parseInt(inputDuracion.value);
+    
+    if (!tema) {
+        mostrarNotificacion('Por favor, ingresa un tema', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tema, duracion })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            mostrarNotificacion('Configuración guardada', 'success');
+        } else {
+            mostrarNotificacion(result.error, 'error');
+        }
+    } catch (error) {
+        mostrarNotificacion('Error al guardar configuración', 'error');
+    }
+});
+
+// Iniciar automatización
+btnIniciar.addEventListener('click', async () => {
+    const tema = inputTema.value.trim();
+    const duracion = parseInt(inputDuracion.value);
+    
+    if (!tema) {
+        mostrarNotificacion('Por favor, ingresa un tema', 'error');
+        return;
+    }
+    
+    if (estadoActual.ejecutando) {
+        mostrarNotificacion('Ya hay una automatización en ejecución', 'warning');
+        return;
+    }
+    
+    btnIniciar.disabled = true;
+    btnGuardarConfig.disabled = true;
+    inputTema.disabled = true;
+    inputDuracion.disabled = true;
+    
+    statusPanel.style.display = 'block';
+    resultsPanel.style.display = 'none';
+    logsContainer.innerHTML = '';
+    
+    try {
+        const response = await fetch('/api/iniciar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tema, duracion })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            mostrarNotificacion('Automatización iniciada', 'success');
+        } else {
+            mostrarNotificacion(result.error, 'error');
+            habilitarControles();
+        }
+    } catch (error) {
+        mostrarNotificacion('Error al iniciar automatización', 'error');
+        habilitarControles();
+    }
+});
+
+// Actualizar estado en la UI
+function actualizarEstado(data) {
+    estadoActual.ejecutando = data.ejecutando;
+    
+    // Actualizar badge
+    statusBadge.className = 'status-badge';
+    
+    if (data.ejecutando) {
+        statusBadge.classList.add('ejecutando');
+        statusText.textContent = 'Ejecutando';
+    } else if (data.tipo === 'success' && data.progreso === 100) {
+        statusBadge.classList.add('completado');
+        statusText.textContent = 'Completado';
+        habilitarControles();
+        cargarHistorial();
+        cargarGuiones();
+        mostrarResultados();
+    } else if (data.tipo === 'error') {
+        statusBadge.classList.add('error');
+        statusText.textContent = 'Error';
+        habilitarControles();
+        cargarHistorial();
+    } else {
+        statusText.textContent = 'Inactivo';
+    }
+    
+    // Actualizar progreso
+    progressFill.style.width = data.progreso + '%';
+    progressText.textContent = data.progreso + '%';
+    
+    // Actualizar mensaje
+    statusMessage.textContent = data.paso;
+    
+    // Agregar log
+    if (data.paso) {
+        agregarLog(data.paso, data.tipo, data.timestamp);
+    }
+}
+
+// Agregar entrada de log
+function agregarLog(mensaje, tipo, timestamp) {
+    const logEntry = document.createElement('div');
+    logEntry.className = `log-entry ${tipo}`;
+    
+    const time = new Date(timestamp).toLocaleTimeString();
+    logEntry.textContent = `[${time}] ${mensaje}`;
+    
+    logsContainer.appendChild(logEntry);
+    logsContainer.scrollTop = logsContainer.scrollHeight;
+}
+
+// Habilitar controles
+function habilitarControles() {
+    btnIniciar.disabled = false;
+    btnGuardarConfig.disabled = false;
+    inputTema.disabled = false;
+    inputDuracion.disabled = false;
+}
+
+// Mostrar resultados
+async function mostrarResultados() {
+    try {
+        const response = await fetch('/api/estado');
+        const estado = await response.json();
+        
+        resultsPanel.style.display = 'block';
+        
+        // Mostrar guion
+        if (estado.ultimoGuion) {
+            guionPreview.innerHTML = `<p>${estado.ultimoGuion.contenido}</p>`;
+            btnCopiarGuion.style.display = 'inline-flex';
+            btnCopiarGuion.onclick = () => copiarTexto(estado.ultimoGuion.contenido);
+        }
+        
+        // Mostrar video
+        if (estado.ultimoVideo) {
+            videoResult.innerHTML = `
+                <a href="${estado.ultimoVideo.url}" target="_blank" class="btn btn-primary">
+                    🎬 Abrir Video en Veed.io
+                </a>
+                <p style="margin-top: 10px; color: var(--text-secondary); font-size: 0.9rem;">
+                    ${estado.ultimoVideo.url}
+                </p>
+            `;
+        }
+    } catch (error) {
+        console.error('Error al cargar resultados:', error);
+    }
+}
+
+// Cargar historial
+async function cargarHistorial() {
+    try {
+        const response = await fetch('/api/historial');
+        const historial = await response.json();
+        
+        if (historial.length === 0) {
+            historialContainer.innerHTML = '<p class="placeholder">No hay ejecuciones previas</p>';
+            return;
+        }
+        
+        historialContainer.innerHTML = '';
+        
+        historial.forEach(item => {
+            const div = document.createElement('div');
+            div.className = `history-item ${item.exito ? 'success' : 'error'}`;
+            
+            const fecha = new Date(item.fecha).toLocaleString();
+            const icono = item.exito ? '✅' : '❌';
+            
+            div.innerHTML = `
+                <div class="history-item-header">
+                    <span class="history-item-title">${icono} ${item.exito ? 'Exitoso' : 'Error'}</span>
+                    <span class="history-item-date">${fecha}</span>
+                </div>
+                <div class="history-item-tema">${item.tema}</div>
+                ${item.error ? `<div style="color: var(--error); font-size: 0.85rem; margin-top: 5px;">Error: ${item.error}</div>` : ''}
+            `;
+            
+            if (item.guion) {
+                div.style.cursor = 'pointer';
+                div.onclick = () => verGuion(item.guion);
+            }
+            
+            historialContainer.appendChild(div);
+        });
+    } catch (error) {
+        console.error('Error al cargar historial:', error);
+    }
+}
+
+// Cargar guiones
+async function cargarGuiones() {
+    try {
+        const response = await fetch('/api/guiones');
+        const guiones = await response.json();
+        
+        if (guiones.length === 0) {
+            guionesLista.innerHTML = '<p class="placeholder">No hay guiones guardados</p>';
+            return;
+        }
+        
+        guionesLista.innerHTML = '';
+        
+        guiones.forEach(guion => {
+            const div = document.createElement('div');
+            div.className = 'script-item';
+            div.onclick = () => verGuion(guion.nombre);
+            
+            const fecha = new Date(guion.fecha).toLocaleString();
+            const tamano = (guion.tamano / 1024).toFixed(2);
+            
+            div.innerHTML = `
+                <div class="script-item-name">📝 ${guion.nombre}</div>
+                <div class="script-item-info">${fecha} • ${tamano} KB</div>
+            `;
+            
+            guionesLista.appendChild(div);
+        });
+    } catch (error) {
+        console.error('Error al cargar guiones:', error);
+    }
+}
+
+// Ver guion en modal
+async function verGuion(nombre) {
+    try {
+        const response = await fetch(`/api/guiones/${nombre}`);
+        const data = await response.json();
+        
+        modalTitulo.textContent = data.nombre;
+        modalContenido.textContent = data.contenido;
+        
+        modal.classList.add('show');
+        
+        btnCopiarGuionModal.onclick = () => {
+            copiarTexto(data.contenido);
+            mostrarNotificacion('Guion copiado al portapapeles', 'success');
+        };
+    } catch (error) {
+        mostrarNotificacion('Error al cargar guion', 'error');
+    }
+}
+
+// Cerrar modal
+modalClose.onclick = () => {
+    modal.classList.remove('show');
+};
+
+modal.onclick = (e) => {
+    if (e.target === modal) {
+        modal.classList.remove('show');
+    }
+};
+
+// Actualizar guiones
+btnActualizarGuiones.addEventListener('click', cargarGuiones);
+
+// Copiar texto al portapapeles
+function copiarTexto(texto) {
+    navigator.clipboard.writeText(texto).then(() => {
+        mostrarNotificacion('Copiado al portapapeles', 'success');
+    }).catch(() => {
+        mostrarNotificacion('Error al copiar', 'error');
+    });
+}
+
+// Mostrar notificación (simple)
+function mostrarNotificacion(mensaje, tipo) {
+    // Crear elemento de notificación temporal
+    const notif = document.createElement('div');
+    notif.textContent = mensaje;
+    notif.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        background: ${tipo === 'success' ? 'var(--success)' : tipo === 'error' ? 'var(--error)' : 'var(--warning)'};
+        color: white;
+        border-radius: 8px;
+        font-weight: 600;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s ease;
+    `;
+    
+    document.body.appendChild(notif);
+    
+    setTimeout(() => {
+        notif.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notif.remove(), 300);
+    }, 3000);
+}
+
+// Agregar estilos para animaciones
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);

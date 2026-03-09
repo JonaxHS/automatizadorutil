@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automatizador de Videos - Qwen + Veed.io</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎬 Automatizador de Videos</h1>
+            <p class="subtitle">Generación automática con Qwen AI + Veed.io</p>
+        </header>
+
+        <main>
+            <!-- Panel de Control -->
+            <section class="card control-panel">
+                <h2>📋 Configuración del Video</h2>
+                
+                <div class="form-group">
+                    <label for="tema">Tema del Video:</label>
+                    <textarea id="tema" rows="3" placeholder="Describe el tema del video que deseas generar..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="duracion">Duración (segundos):</label>
+                    <input type="number" id="duracion" min="30" max="600" value="60">
+                </div>
+
+                <button id="btnIniciar" class="btn btn-primary">
+                    <span class="btn-icon">🚀</span>
+                    Iniciar Automatización
+                </button>
+
+                <button id="btnGuardarConfig" class="btn btn-secondary">
+                    <span class="btn-icon">💾</span>
+                    Guardar Configuración
+                </button>
+            </section>
+
+            <!-- Estado y Progreso -->
+            <section class="card status-panel" id="statusPanel" style="display: none;">
+                <h2>📊 Estado de la Automatización</h2>
+                
+                <div class="status-info">
+                    <div class="status-badge" id="statusBadge">
+                        <span class="status-dot"></span>
+                        <span id="statusText">Inactivo</span>
+                    </div>
+                    
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                        </div>
+                        <span class="progress-text" id="progressText">0%</span>
+                    </div>
+                    
+                    <div class="status-message" id="statusMessage">
+                        Esperando inicio...
+                    </div>
+                </div>
+
+                <div id="logs" class="logs-container"></div>
+            </section>
+
+            <!-- Resultados -->
+            <section class="card results-panel" id="resultsPanel" style="display: none;">
+                <h2>✅ Último Resultado</h2>
+                
+                <div class="result-content">
+                    <div class="result-item">
+                        <h3>📝 Guion Generado</h3>
+                        <div class="guion-preview" id="guionPreview">
+                            <p class="placeholder">El guion aparecerá aquí...</p>
+                        </div>
+                        <button id="btnCopiarGuion" class="btn btn-small" style="display: none;">
+                            Copiar Guion
+                        </button>
+                    </div>
+                    
+                    <div class="result-item">
+                        <h3>🎬 Video</h3>
+                        <div id="videoResult">
+                            <p class="placeholder">La URL del video aparecerá aquí...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Historial -->
+            <section class="card history-panel">
+                <h2>📚 Historial de Ejecuciones</h2>
+                <div id="historial" class="history-list">
+                    <p class="placeholder">No hay ejecuciones previas</p>
+                </div>
+            </section>
+
+            <!-- Guiones Guardados -->
+            <section class="card scripts-panel">
+                <h2>📄 Guiones Guardados</h2>
+                <button id="btnActualizarGuiones" class="btn btn-small">🔄 Actualizar</button>
+                <div id="guionesLista" class="scripts-list">
+                    <p class="placeholder">Cargando guiones...</p>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Automatizador de Videos v1.0 | Conectado: <span id="connectionStatus" class="connected">✓</span></p>
+        </footer>
+    </div>
+
+    <!-- Modal para ver guiones -->
+    <div id="modalGuion" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <h2>📝 <span id="modalGuionTitulo"></span></h2>
+            <pre id="modalGuionContenido"></pre>
+            <button id="btnCopiarGuionModal" class="btn btn-primary">Copiar</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
