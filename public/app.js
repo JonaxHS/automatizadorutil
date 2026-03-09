@@ -15,7 +15,6 @@ const btnAuthCancel = document.getElementById('btnAuthCancel');
 const btnAuthRefresh = document.getElementById('btnAuthRefresh');
 
 const inputTema = document.getElementById('tema');
-const inputDuracion = document.getElementById('duracion');
 const inputQwenChatUrl = document.getElementById('qwenChatUrl');
 
 const statusPanel = document.getElementById('statusPanel');
@@ -206,7 +205,6 @@ async function cargarConfiguracion() {
         const config = await response.json();
         
         inputTema.value = config.tema;
-        inputDuracion.value = config.duracion;
         inputQwenChatUrl.value = config.qwenChatUrl || '';
     } catch (error) {
         console.error('Error al cargar configuración:', error);
@@ -216,7 +214,6 @@ async function cargarConfiguracion() {
 // Guardar configuración
 btnGuardarConfig.addEventListener('click', async () => {
     const tema = inputTema.value.trim();
-    const duracion = parseInt(inputDuracion.value);
     const qwenChatUrl = inputQwenChatUrl.value.trim();
     
     if (!tema) {
@@ -233,7 +230,7 @@ btnGuardarConfig.addEventListener('click', async () => {
         const response = await fetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tema, duracion, qwenChatUrl })
+                body: JSON.stringify({ tema, qwenChatUrl })
         });
         
         const result = await response.json();
@@ -295,7 +292,6 @@ btnTestQwen.addEventListener('click', async () => {
 // Iniciar automatización
 btnIniciar.addEventListener('click', async () => {
     const tema = inputTema.value.trim();
-    const duracion = parseInt(inputDuracion.value);
     
     if (!tema) {
         mostrarNotificacion('Por favor, ingresa un tema', 'error');
@@ -310,7 +306,6 @@ btnIniciar.addEventListener('click', async () => {
     btnIniciar.disabled = true;
     btnGuardarConfig.disabled = true;
     inputTema.disabled = true;
-    inputDuracion.disabled = true;
     
     statusPanel.style.display = 'block';
     resultsPanel.style.display = 'none';
@@ -320,7 +315,7 @@ btnIniciar.addEventListener('click', async () => {
         const response = await fetch('/api/iniciar', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tema, duracion })
+                body: JSON.stringify({ tema })
         });
         
         const result = await response.json();
@@ -393,7 +388,7 @@ function habilitarControles() {
     btnIniciar.disabled = false;
     btnGuardarConfig.disabled = false;
     inputTema.disabled = false;
-    inputDuracion.disabled = false;
+    inputTema.disabled = false;
 }
 
 // Mostrar resultados

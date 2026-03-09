@@ -16,31 +16,27 @@
         <main>
             <!-- Panel de Control -->
             <section class="card control-panel">
-                <h2>📋 Configuración del Video</h2>
+                <h2>📋 Configuración</h2>
                 
                 <div class="form-group">
-                    <label for="tema">Tema del Video:</label>
-                    <textarea id="tema" rows="3" placeholder="Describe el tema del video que deseas generar..."></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="duracion">Duración (segundos):</label>
-                    <input type="number" id="duracion" min="30" max="600" value="60">
+                    <label for="tema">Mensaje para Qwen:</label>
+                    <textarea id="tema" rows="3" placeholder="Escribe el tema o pregunta que enviarás a tu chat de Qwen..."></textarea>
                 </div>
 
                 <div class="form-group">
                     <label for="qwenChatUrl">URL del Chat de Qwen:</label>
                     <input type="text" id="qwenChatUrl" placeholder="https://chat.qwen.ai/c/tu-chat-id">
+                    <small>Copia la URL de tu chat preconfigurado en Qwen</small>
                 </div>
+
+                <button id="btnTestQwen" class="btn btn-primary">
+                    <span class="btn-icon">🧪</span>
+                    Probar Solo Qwen
+                </button>
 
                 <button id="btnIniciar" class="btn btn-primary">
                     <span class="btn-icon">🚀</span>
-                    Iniciar Automatización
-                </button>
-
-                <button id="btnTestQwen" class="btn btn-secondary">
-                    <span class="btn-icon">🧪</span>
-                    Probar Solo Qwen
+                    Iniciar Automatización Completa
                 </button>
 
                 <button id="btnGuardarConfig" class="btn btn-secondary">
