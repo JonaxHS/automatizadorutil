@@ -82,6 +82,28 @@ function guardarLog(tipo, mensaje, datos = {}) {
   fs.writeFileSync(logFile, JSON.stringify(logs, null, 2));
 }
 
+function persistirVariableEnv(clave, valor) {
+  const envPath = path.join(__dirname, '../.env');
+  const lineaNueva = `${clave}=${valor}`;
+
+  let contenido = '';
+  if (fs.existsSync(envPath)) {
+    contenido = fs.readFileSync(envPath, 'utf-8');
+  }
+
+  const regex = new RegExp(`^${clave}=.*$`, 'm');
+  if (regex.test(contenido)) {
+    contenido = contenido.replace(regex, lineaNueva);
+  } else {
+    if (contenido && !contenido.endsWith('\n')) {
+      contenido += '\n';
+    }
+    contenido += `${lineaNueva}\n`;
+  }
+
+  fs.writeFileSync(envPath, contenido, 'utf-8');
+}
+
 // API Endpoints
 
 // Obtener estado actual
@@ -188,16 +210,19 @@ app.post('/api/config', (req, res) => {
   if (tema) {
     config.video.tema = tema;
     process.env.VIDEO_TEMA = tema;
+    persistirVariableEnv('VIDEO_TEMA', tema);
   }
   
   if (duracion) {
     config.video.duracion = parseInt(duracion);
     process.env.VIDEO_DURACION = duracion.toString();
+    persistirVariableEnv('VIDEO_DURACION', duracion.toString());
   }
 
   if (qwenChatUrl) {
     config.qwenChatUrl = qwenChatUrl;
     process.env.QWEN_CHAT_URL = qwenChatUrl;
+    persistirVariableEnv('QWEN_CHAT_URL', qwenChatUrl);
   }
   
   res.json({
