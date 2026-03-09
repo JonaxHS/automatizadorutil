@@ -111,6 +111,14 @@ main {
 
 .form-group textarea {
     resize: vertical;
+
+.form-group small {
+    display: block;
+    margin-top: 6px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    opacity: 0.8;
+}
 }
 
 .btn {
