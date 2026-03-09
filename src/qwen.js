@@ -119,31 +119,75 @@ Solo proporciona el texto del guion, sin explicaciones adicionales.`;
 
     while (intentos < maxIntentos) {
       try {
-        const mensajes = await page.$$('.message, [class*="message"], [class*="Message"], [data-testid*="message"], [class*="chat"], div[class*="answer"], div[class*="response"]');
-        console.log(`Intento ${intentos + 1}: ${mensajes.length} mensajes encontrados`);
+        // Intentar esperar a que aparezca contenido de respuesta
+        await page.waitForTimeout(2000);
         
-        if (mensajes.length > 0) {
-          const ultimoMensaje = mensajes[mensajes.length - 1];
-          const texto = await ultimoMensaje.innerText();
-
-          if (texto && texto.length > 50) {
-            guion = texto;
-            console.log(`Guion capturado: ${texto.substring(0, 100)}...`);
-
-            const isGenerating = await page.$('[aria-label*="generating"], [class*="generating"], [class*="typing"]');
-            if (!isGenerating) {
-              console.log('Generación completada');
-              break;
-            } else {
-              console.log('Aún generando...');
+        // Buscar mensajes del asistente (varios selectores para diferentes versiones de Qwen)
+        const respuesta = await page.evaluate(() => {
+          // Buscar por diferentes patrones
+          const selectores = [
+            '[class*="AssistantMessage"]',
+            '[data-role="assistant"]',
+            '[class*="markdown-body"]',
+            'div[class*="message"][class*="assistant"]',
+            'div[class*="answer"]',
+            'div[class*="response"][class*="ai"]'
+          ];
+          
+          for (const selector of selectores) {
+            const elementos = document.querySelectorAll(selector);
+            if (elementos.length > 0) {
+              const ultimo = elementos[elementos.length - 1];
+              const texto = ultimo.innerText || ultimo.textContent;
+              if (texto && texto.trim().length > 50) {
+                return { texto: texto.trim(), selector };
+              }
             }
           }
+          
+          // Si no funciona, buscar el div más grande con texto después del prompt del usuario
+          const todos = Array.from(document.querySelectorAll('div'));
+          const conTexto = todos
+            .filter(div => {
+              const texto = div.innerText || div.textContent;
+              return texto && texto.trim().length > 100 && texto.trim().length < 10000;
+            })
+            .sort((a, b) => {
+              const textoA = (a.innerText || a.textContent || '').trim();
+              const textoB = (b.innerText || b.textContent || '').trim();
+              return textoB.length - textoA.length;
+            });
+          
+          if (conTexto.length > 0) {
+            const texto = (conTexto[0].innerText || conTexto[0].textContent).trim();
+            return { texto, selector: 'div-grande' };
+          }
+          
+          return null;
+        });
+
+        if (respuesta && respuesta.texto) {
+          guion = respuesta.texto;
+          console.log(`Guion capturado con selector '${respuesta.selector}': ${respuesta.texto.substring(0, 150)}...`);
+          console.log(`Longitud del guion: ${guion.length} caracteres`);
+
+          // Verificar si sigue generando
+          const isGenerating = await page.$('[aria-label*="generating"], [class*="generating"], [class*="typing"], [class*="loading"]');
+          if (!isGenerating && guion.length > 100) {
+            console.log('Generación completada');
+            await page.screenshot({ path: 'screenshots/qwen-respuesta-capturada.png', fullPage: true });
+            break;
+          } else if (isGenerating) {
+            console.log('Aún generando, esperando...');
+          }
+        } else {
+          console.log(`Intento ${intentos + 1}: No se encontró respuesta válida`);
         }
       } catch (error) {
         console.log(`Error en intento ${intentos + 1}: ${error.message}`);
       }
 
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(2000);
       intentos += 1;
     }
 
