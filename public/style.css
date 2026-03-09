@@ -162,6 +162,47 @@ main {
     font-size: 1.2rem;
 }
 
+.auth-help {
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.auth-status {
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.auth-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.auth-actions .btn {
+    margin-top: 0;
+    margin-right: 0;
+}
+
+.auth-session-info {
+    margin-top: 12px;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.auth-vnc-link {
+    display: inline-block;
+    margin-top: 10px;
+    color: var(--success);
+    text-decoration: none;
+}
+
+.auth-vnc-link:hover {
+    text-decoration: underline;
+}
+
 .status-info {
     background: var(--bg-main);
     padding: 20px;

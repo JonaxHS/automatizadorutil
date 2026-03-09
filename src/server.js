@@ -6,6 +6,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { generarGuion } from './qwen.js';
 import { generarVideo } from './veed.js';
+import {
+  cancelarSesionInteractivaWeb,
+  finalizarSesionInteractivaWeb,
+  getEstadoAutenticacion,
+  iniciarSesionInteractivaWeb
+} from './auth.js';
 import { config } from '../config.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -92,6 +98,83 @@ app.get('/api/config', (req, res) => {
     veedUrl: config.veedUrl,
     headless: config.headless
   });
+});
+
+// Estado de autenticacion para login Google
+app.get('/api/auth/status', (req, res) => {
+  const estado = getEstadoAutenticacion();
+  const host = req.get('host');
+  const protocol = req.protocol;
+  const hostname = (host || '').split(':')[0] || 'localhost';
+  const noVncPort = process.env.NOVNC_PORT || '6080';
+
+  res.json({
+    ...estado,
+    noVncUrl: `${protocol}://${hostname}:${noVncPort}/vnc.html?autoconnect=true&resize=remote`
+  });
+});
+
+// Iniciar login interactivo desde la web
+app.post('/api/auth/start', async (req, res) => {
+  try {
+    if (estadoAutomatizacion.ejecutando) {
+      return res.status(400).json({ error: 'No se puede iniciar login mientras hay una automatizacion en ejecucion.' });
+    }
+
+    const { servicio } = req.body;
+    if (!servicio || !['qwen', 'veed'].includes(servicio)) {
+      return res.status(400).json({ error: 'Servicio invalido. Usa qwen o veed.' });
+    }
+
+    const url = servicio === 'qwen' ? config.qwenChatUrl : config.veedUrl;
+    const session = await iniciarSesionInteractivaWeb(servicio, url);
+
+    guardarLog('auth_start', 'Login interactivo iniciado', { servicio, sessionId: session.sessionId });
+    io.emit('auth_estado', getEstadoAutenticacion());
+
+    res.json({
+      mensaje: `Login de ${servicio} iniciado`,
+      ...session
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Guardar sesion iniciada de forma interactiva
+app.post('/api/auth/finish', async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId es requerido.' });
+    }
+
+    const resultado = await finalizarSesionInteractivaWeb(sessionId);
+    guardarLog('auth_finish', 'Sesion guardada desde interfaz web', resultado);
+    io.emit('auth_estado', getEstadoAutenticacion());
+
+    res.json({ mensaje: 'Sesion guardada correctamente.', ...resultado });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Cancelar login interactivo en curso
+app.post('/api/auth/cancel', async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId es requerido.' });
+    }
+
+    const resultado = await cancelarSesionInteractivaWeb(sessionId);
+    guardarLog('auth_cancel', 'Sesion interactiva cancelada', resultado);
+    io.emit('auth_estado', getEstadoAutenticacion());
+
+    res.json({ mensaje: 'Sesion interactiva cancelada.', ...resultado });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
 // Actualizar configuración
@@ -288,6 +371,8 @@ io.on('connection', (socket) => {
     progreso: estadoAutomatizacion.progreso,
     timestamp: new Date().toISOString()
   });
+
+  socket.emit('auth_estado', getEstadoAutenticacion());
   
   socket.on('disconnect', () => {
     console.log('Cliente desconectado:', socket.id);

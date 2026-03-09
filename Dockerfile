@@ -4,7 +4,14 @@ FROM node:20-bullseye
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
+    curl \
+    procps \
     fonts-liberation \
+    xvfb \
+    fluxbox \
+    x11vnc \
+    novnc \
+    websockify \
     libasound2 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
@@ -42,10 +49,14 @@ RUN npx playwright install-deps chromium
 COPY . .
 
 # Crear directorios necesarios
-RUN mkdir -p screenshots guiones videos logs
+RUN mkdir -p screenshots guiones videos logs .auth
+
+# Script de arranque para Xvfb + noVNC + app Node
+RUN chmod +x /app/docker-entrypoint.sh
 
 # Exponer el puerto del servidor web
 EXPOSE 3000
+EXPOSE 6080
 
 # Comando para iniciar el servidor
-CMD ["node", "src/server.js"]
+CMD ["/app/docker-entrypoint.sh"]

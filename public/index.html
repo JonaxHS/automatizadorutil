@@ -39,6 +39,26 @@
                 </button>
             </section>
 
+            <section class="card auth-panel">
+                <h2>🔐 Login Google (Qwen + Veed)</h2>
+                <p class="auth-help">
+                    Inicia sesión desde esta interfaz. Si estás en VPS, abre el escritorio remoto del navegador con noVNC.
+                </p>
+
+                <div id="authStatus" class="auth-status">Cargando estado de autenticación...</div>
+
+                <div class="auth-actions">
+                    <button id="btnAuthQwen" class="btn btn-secondary">Iniciar Login Qwen</button>
+                    <button id="btnAuthVeed" class="btn btn-secondary">Iniciar Login Veed</button>
+                    <button id="btnAuthFinish" class="btn btn-primary" disabled>Guardar Sesión Actual</button>
+                    <button id="btnAuthCancel" class="btn btn-secondary" disabled>Cancelar Login</button>
+                    <button id="btnAuthRefresh" class="btn btn-small">Actualizar Estado</button>
+                </div>
+
+                <div id="authSessionInfo" class="auth-session-info"></div>
+                <a id="authVncLink" class="auth-vnc-link" target="_blank" rel="noopener" style="display:none;">Abrir escritorio remoto noVNC</a>
+            </section>
+
             <!-- Estado y Progreso -->
             <section class="card status-panel" id="statusPanel" style="display: none;">
                 <h2>📊 Estado de la Automatización</h2>

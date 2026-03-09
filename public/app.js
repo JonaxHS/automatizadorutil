@@ -7,6 +7,11 @@ const btnGuardarConfig = document.getElementById('btnGuardarConfig');
 const btnActualizarGuiones = document.getElementById('btnActualizarGuiones');
 const btnCopiarGuion = document.getElementById('btnCopiarGuion');
 const btnCopiarGuionModal = document.getElementById('btnCopiarGuionModal');
+const btnAuthQwen = document.getElementById('btnAuthQwen');
+const btnAuthVeed = document.getElementById('btnAuthVeed');
+const btnAuthFinish = document.getElementById('btnAuthFinish');
+const btnAuthCancel = document.getElementById('btnAuthCancel');
+const btnAuthRefresh = document.getElementById('btnAuthRefresh');
 
 const inputTema = document.getElementById('tema');
 const inputDuracion = document.getElementById('duracion');
@@ -24,6 +29,9 @@ const videoResult = document.getElementById('videoResult');
 const historialContainer = document.getElementById('historial');
 const guionesLista = document.getElementById('guionesLista');
 const connectionStatus = document.getElementById('connectionStatus');
+const authStatus = document.getElementById('authStatus');
+const authSessionInfo = document.getElementById('authSessionInfo');
+const authVncLink = document.getElementById('authVncLink');
 
 const modal = document.getElementById('modalGuion');
 const modalClose = document.querySelector('.modal-close');
@@ -35,11 +43,17 @@ let estadoActual = {
     ejecutando: false
 };
 
+let authState = {
+    sessionIdActiva: null,
+    noVncUrl: null
+};
+
 // Inicialización
 window.addEventListener('DOMContentLoaded', () => {
     cargarConfiguracion();
     cargarHistorial();
     cargarGuiones();
+    cargarEstadoAuth();
 });
 
 // WebSocket eventos
@@ -59,6 +73,129 @@ socket.on('estado', (data) => {
     console.log('Estado recibido:', data);
     actualizarEstado(data);
 });
+
+socket.on('auth_estado', () => {
+    cargarEstadoAuth();
+});
+
+async function cargarEstadoAuth() {
+    try {
+        const response = await fetch('/api/auth/status');
+        const data = await response.json();
+
+        authState.noVncUrl = data.noVncUrl;
+
+        if (data.sesionesActivas && data.sesionesActivas.length > 0) {
+            const sesion = data.sesionesActivas[0];
+            authState.sessionIdActiva = sesion.sessionId;
+            btnAuthFinish.disabled = false;
+            btnAuthCancel.disabled = false;
+            authSessionInfo.textContent = `Sesion activa: ${sesion.servicio} (${sesion.sessionId})`;
+        } else {
+            authState.sessionIdActiva = null;
+            btnAuthFinish.disabled = true;
+            btnAuthCancel.disabled = true;
+            authSessionInfo.textContent = 'No hay sesiones de login activas.';
+        }
+
+        authStatus.textContent = data.tieneSesionGuardada
+            ? `Sesion guardada detectada. Ultima actualizacion: ${data.metadata?.fecha || 'desconocida'}`
+            : 'No hay sesion guardada aun. Inicia login en Qwen y Veed.';
+
+        if (data.noVncUrl) {
+            authVncLink.style.display = 'inline-block';
+            authVncLink.href = data.noVncUrl;
+        }
+    } catch (error) {
+        authStatus.textContent = 'No se pudo obtener estado de autenticacion.';
+    }
+}
+
+async function iniciarAuth(servicio) {
+    try {
+        const response = await fetch('/api/auth/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ servicio })
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'No se pudo iniciar login.');
+        }
+
+        authState.sessionIdActiva = result.sessionId;
+        btnAuthFinish.disabled = false;
+        btnAuthCancel.disabled = false;
+
+        mostrarNotificacion(`Login de ${servicio} iniciado. Completa login y pulsa Guardar Sesion Actual.`, 'success');
+
+        if (authState.noVncUrl) {
+            authVncLink.style.display = 'inline-block';
+            authVncLink.href = authState.noVncUrl;
+        }
+
+        await cargarEstadoAuth();
+    } catch (error) {
+        mostrarNotificacion(error.message, 'error');
+    }
+}
+
+async function finalizarAuth() {
+    if (!authState.sessionIdActiva) {
+        mostrarNotificacion('No hay sesion activa para guardar.', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/auth/finish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: authState.sessionIdActiva })
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'No se pudo guardar la sesion.');
+        }
+
+        mostrarNotificacion('Sesion guardada correctamente.', 'success');
+        await cargarEstadoAuth();
+    } catch (error) {
+        mostrarNotificacion(error.message, 'error');
+    }
+}
+
+async function cancelarAuth() {
+    if (!authState.sessionIdActiva) {
+        mostrarNotificacion('No hay sesion activa para cancelar.', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/auth/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: authState.sessionIdActiva })
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'No se pudo cancelar la sesion.');
+        }
+
+        mostrarNotificacion('Sesion de login cancelada.', 'success');
+        await cargarEstadoAuth();
+    } catch (error) {
+        mostrarNotificacion(error.message, 'error');
+    }
+}
+
+btnAuthQwen?.addEventListener('click', () => iniciarAuth('qwen'));
+btnAuthVeed?.addEventListener('click', () => iniciarAuth('veed'));
+btnAuthFinish?.addEventListener('click', finalizarAuth);
+btnAuthCancel?.addEventListener('click', cancelarAuth);
+btnAuthRefresh?.addEventListener('click', cargarEstadoAuth);
 
 // Cargar configuración inicial
 async function cargarConfiguracion() {

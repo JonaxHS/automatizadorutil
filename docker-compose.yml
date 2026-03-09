@@ -5,13 +5,16 @@ services:
     build: .
     container_name: automatizador-veed
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
+      - "${NOVNC_PORT:-6080}:6080"
     environment:
       - NODE_ENV=production
       - HEADLESS=true
+      - NOVNC_PORT=6080
     env_file:
       - .env
     volumes:
+      - ./.auth:/app/.auth
       # Persistir screenshots, guiones y videos generados
       - ./screenshots:/app/screenshots
       - ./guiones:/app/guiones
