@@ -111,17 +111,16 @@ Solo proporciona el texto del guion, sin explicaciones adicionales.`;
     }
 
     await page.screenshot({ path: 'screenshots/qwen-3-message-sent.png', fullPage: true });
-    await page.waitForTimeout(5000);
+    
+    console.log('Esperando respuesta de Qwen AI (puede tardar 10-60 segundos)...');
+    await page.waitForTimeout(12000); // Espera inicial de 12 segundos
 
     let guion = '';
     let intentos = 0;
-    const maxIntentos = 60;
+    const maxIntentos = 30; // 30 intentos x 3 segundos = 90 segundos máximo
 
     while (intentos < maxIntentos) {
       try {
-        // Intentar esperar a que aparezca contenido de respuesta
-        await page.waitForTimeout(2000);
-        
         // Buscar mensajes del asistente (varios selectores para diferentes versiones de Qwen)
         const respuesta = await page.evaluate(() => {
           // Buscar por diferentes patrones
@@ -181,13 +180,13 @@ Solo proporciona el texto del guion, sin explicaciones adicionales.`;
             console.log('Aún generando, esperando...');
           }
         } else {
-          console.log(`Intento ${intentos + 1}: No se encontró respuesta válida`);
+          console.log(`Intento ${intentos + 1}: No se encontró respuesta válida aún`);
         }
       } catch (error) {
         console.log(`Error en intento ${intentos + 1}: ${error.message}`);
       }
 
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(3000); // Esperar 3 segundos entre intentos
       intentos += 1;
     }
 
