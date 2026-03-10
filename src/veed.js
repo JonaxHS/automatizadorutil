@@ -15,7 +15,7 @@ export async function generarVideo(guion) {
     // Navegar directamente a AI Studio
     const aiStudioUrl = 'https://www.veed.io/ai-studio';
     console.log(`Navegando a ${aiStudioUrl}...`);
-    
+
     // Intentar navegación con estrategia más tolerante
     try {
       await page.goto(aiStudioUrl, {
@@ -29,7 +29,7 @@ export async function generarVideo(guion) {
         timeout: 90000
       });
     }
-    
+
     // Esperar a que la página esté lista
     await page.waitForTimeout(3000);
 
@@ -72,7 +72,7 @@ export async function generarVideo(guion) {
       // Verificar si hay indicadores que requieren login
       console.log('No se detectó autenticación, verificando indicadores de login...');
       let loginDetectado = false;
-      
+
       const loginSelectors = [
         'text=/.*sign in.*/i',
         'text=/.*log in.*/i',
@@ -81,7 +81,7 @@ export async function generarVideo(guion) {
         'button:has-text("Sign in")',
         'a:has-text("Sign in")'
       ];
-      
+
       for (const selector of loginSelectors) {
         try {
           const loginElements = await page.$$(selector);
@@ -94,12 +94,12 @@ export async function generarVideo(guion) {
           continue;
         }
       }
-      
+
       if (loginDetectado) {
         await page.screenshot({ path: 'screenshots/veed-no-auth.png', fullPage: true });
         throw new Error('No autenticado en Veed.io. Inicia sesion desde la interfaz web. Revisa el screenshot: screenshots/veed-no-auth.png');
       }
-      
+
       // Si no hay indicadores de login, asumir que está autenticado
       console.log('No se encontraron indicadores de login, continuando...');
     }
@@ -331,7 +331,7 @@ export async function generarVideo(guion) {
         '[class*="error-text"]',
         '[data-testid*="error"]'
       ];
-      
+
       let errorReal = null;
       for (const selector of errorSelectors) {
         try {
@@ -352,7 +352,7 @@ export async function generarVideo(guion) {
           continue;
         }
       }
-      
+
       if (errorReal) {
         await page.screenshot({ path: 'screenshots/veed-error-generacion.png', fullPage: true });
         throw new Error(`Error en la generacion: ${errorReal}`);
@@ -360,7 +360,7 @@ export async function generarVideo(guion) {
 
       await page.waitForTimeout(5000);
       tiempoEsperado += 5000;
-      
+
       if (tiempoEsperado % 30000 === 0) {
         console.log(`Esperando... ${tiempoEsperado / 1000}s de ${maxTiempoGeneracion / 1000}s`);
         await page.screenshot({ path: `screenshots/veed-esperando-${tiempoEsperado / 1000}s.png`, fullPage: true });
@@ -434,12 +434,12 @@ export async function generarVideo(guion) {
       // Seleccionar voz Alex o Carolina
       console.log('Seleccionando voz (Alex o Carolina)...');
       const voiceSelectors = [
-        'text=/.*alex.*/i',
         'text=/.*carolina.*/i',
-        'button:has-text("Alex")',
+        'text=/.*alex.*/i',
         'button:has-text("Carolina")',
-        'div[role="option"]:has-text("Alex")',
-        'div[role="option"]:has-text("Carolina")'
+        'button:has-text("Alex")',
+        'div[role="option"]:has-text("Carolina")',
+        'div[role="option"]:has-text("Alex")'
       ];
 
       let voiceSelected = false;
@@ -510,7 +510,7 @@ export async function generarVideo(guion) {
 
           const tieneIdioma = /spanish|español/.test(texto);
           const tieneVoz = /alex|carolina/.test(texto);
-          const tieneSubtitulos = /boba/.test(texto);
+          const tieneSubtitulos = /boba|slay/.test(texto);
 
           // Además validar que el botón Hecho exista y esté habilitado.
           const botonHechoVisible = await page.$(
@@ -731,7 +731,7 @@ export async function generarVideo(guion) {
         '[class*="error-text"]',
         '[data-testid*="error"]'
       ];
-      
+
       let errorReal = null;
       for (const selector of errorSelectors) {
         try {
@@ -752,7 +752,7 @@ export async function generarVideo(guion) {
           continue;
         }
       }
-      
+
       if (errorReal) {
         await page.screenshot({ path: 'screenshots/veed-error-render.png', fullPage: true });
         throw new Error(`Error en el renderizado: ${errorReal}`);
