@@ -13,6 +13,7 @@ import {
   iniciarSesionInteractivaWeb
 } from './auth.js';
 import { config } from '../config.js';
+import { iniciarBot } from './telegram.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -608,5 +609,8 @@ httpServer.listen(PORT, () => {
   console.log('═'.repeat(60));
   console.log('');
 });
+
+// Iniciar bot de Telegram (si hay token configurado)
+iniciarBot(emitirEstado);
 
 export { app, io };
