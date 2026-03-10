@@ -509,6 +509,66 @@ export async function generarVideo(guion) {
 
     // Esperar el renderizado final (puede tardar varios minutos)
     console.log('Esperando renderizado final...');
+
+    // Después de "Hecho" normalmente aparece una pantalla intermedia:
+    // "Estamos generando su video...". La detectamos y esperamos a que desaparezca.
+    const pantallaGenerandoSelectors = [
+      'text=/.*estamos generando su vídeo.*/i',
+      'text=/.*estamos generando su video.*/i',
+      'text=/.*siéntate tranquilo, tu vídeo estará listo pronto.*/i',
+      'text=/.*sientate tranquilo, tu video estara listo pronto.*/i',
+      'text=/.*we are generating your video.*/i',
+      'text=/.*your video will be ready soon.*/i'
+    ];
+
+    let pantallaGenerandoDetectada = false;
+    for (const selector of pantallaGenerandoSelectors) {
+      try {
+        const el = await page.$(selector);
+        if (el && (await el.isVisible())) {
+          pantallaGenerandoDetectada = true;
+          console.log(`Pantalla de generacion detectada con selector: ${selector}`);
+          await page.screenshot({ path: 'screenshots/veed-9b-generando.png', fullPage: true });
+          break;
+        }
+      } catch (error) {
+        continue;
+      }
+    }
+
+    if (pantallaGenerandoDetectada) {
+      let tiempoGenerando = 0;
+      const maxTiempoPantallaGenerando = Math.min(config.timeouts.generation, 300000);
+
+      while (tiempoGenerando < maxTiempoPantallaGenerando) {
+        let sigueGenerando = false;
+
+        for (const selector of pantallaGenerandoSelectors) {
+          try {
+            const el = await page.$(selector);
+            if (el && (await el.isVisible())) {
+              sigueGenerando = true;
+              break;
+            }
+          } catch (error) {
+            continue;
+          }
+        }
+
+        if (!sigueGenerando) {
+          console.log('Pantalla de generacion finalizada. Continuando a deteccion de video listo...');
+          break;
+        }
+
+        await page.waitForTimeout(5000);
+        tiempoGenerando += 5000;
+
+        if (tiempoGenerando % 30000 === 0) {
+          console.log(`Generando video... ${tiempoGenerando / 1000}s`);
+        }
+      }
+    }
+
     let videoGenerado = false;
     tiempoEsperado = 0;
     const maxTiempoRender = config.timeouts.generation;
@@ -523,8 +583,8 @@ export async function generarVideo(guion) {
         '.video-player',
         '[class*="preview"]',
         '[class*="player"]',
-        'a[href*="/video/"]',
-        'a[href*="/editor/"]'
+        'button:has-text("Vista previa")',
+        'button:has-text("Preview")'
       ];
 
       for (const selector of successSelectors) {
