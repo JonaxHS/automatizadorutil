@@ -181,6 +181,33 @@ export async function generarVideo(guion) {
     await page.waitForTimeout(2000);
     await page.screenshot({ path: 'screenshots/veed-3-generate-clicked.png', fullPage: true });
 
+    // Veed muestra un estado intermedio "Generar video..." con skeletons.
+    // Esperamos a que termine para poder editar parametros de forma estable.
+    console.log('Esperando que termine la carga inicial de Veed...');
+    let cargaInicialLista = false;
+    for (let i = 0; i < 24; i++) {
+      try {
+        const loadingHints = await page.$$(
+          'text=/.*generar video.*instantes.*/i, text=/.*generating.*moments.*/i, text=/.*this may take a moment.*/i'
+        );
+        const panelAjustes = await page.$$('text=/.*ajustes.*/i, text=/.*settings.*/i');
+
+        if (panelAjustes.length > 0 && loadingHints.length === 0) {
+          cargaInicialLista = true;
+          break;
+        }
+      } catch (error) {
+        // continuar reintentando
+      }
+
+      await page.waitForTimeout(5000);
+    }
+    if (cargaInicialLista) {
+      console.log('Carga inicial completada, procediendo a ajustar parametros.');
+    } else {
+      console.log('Carga inicial no confirmada totalmente, intentando continuar con cuidado.');
+    }
+
     // Esperar hasta 5 minutos para que aparezcan las opciones
     console.log('Esperando opciones de configuracion (hasta 5 minutos)...');
     console.log('Veed.io está procesando el guion y generando el video inicial...');
@@ -192,6 +219,7 @@ export async function generarVideo(guion) {
       // Buscar indicadores de que aparecieron las opciones
       const opcionSelectors = [
         'text=/.*solo voz.*/i',
+        'text=/.*sólo voz.*/i',
         'text=/.*voice only.*/i',
         'text=/.*spanish.*/i',
         'text=/.*español.*/i',
@@ -275,8 +303,10 @@ export async function generarVideo(guion) {
       console.log('Seleccionando opcion "solo voz"...');
       const soloVozSelectors = [
         'text=/.*solo voz.*/i',
+        'text=/.*sólo voz.*/i',
         'text=/.*voice only.*/i',
         'button:has-text("solo voz")',
+        'button:has-text("Sólo voz")',
         'button:has-text("Voice only")'
       ];
 
@@ -302,6 +332,9 @@ export async function generarVideo(guion) {
       const spanishSelectors = [
         'text=/.*spanish.*/i',
         'text=/.*español.*/i',
+        'option:has-text("Spanish")',
+        'button:has-text("Spanish")',
+        'div[role="option"]:has-text("Spanish")',
         'select option:has-text("Spanish")',
         '[value*="spanish"]',
         '[value*="es"]'
@@ -329,7 +362,9 @@ export async function generarVideo(guion) {
         'text=/.*alex.*/i',
         'text=/.*carolina.*/i',
         'button:has-text("Alex")',
-        'button:has-text("Carolina")'
+        'button:has-text("Carolina")',
+        'div[role="option"]:has-text("Alex")',
+        'div[role="option"]:has-text("Carolina")'
       ];
 
       let voiceSelected = false;
@@ -361,6 +396,7 @@ export async function generarVideo(guion) {
         'text=/.*boba.*/i',
         'button:has-text("boba")',
         'button:has-text("Boba")',
+        'div[role="option"]:has-text("Boba")',
         '[value*="boba"]'
       ];
 
