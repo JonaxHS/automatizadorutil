@@ -265,156 +265,156 @@ export async function generarVideo(guion) {
     }
 
     if (!opcionesEncontradas) {
-      await page.screenshot({ path: 'screenshots/veed-timeout-opciones.png', fullPage: true });
-      throw new Error('Timeout esperando las opciones de configuracion.');
-    }
+      // Algunos flujos de Veed avanzan directo al render sin este panel.
+      console.log('No aparecieron opciones avanzadas. Continuando flujo directo a renderizado...');
+      await page.screenshot({ path: 'screenshots/veed-timeout-opciones-continuando.png', fullPage: true });
+    } else {
+      await page.screenshot({ path: 'screenshots/veed-4-opciones-aparecieron.png', fullPage: true });
 
-    await page.screenshot({ path: 'screenshots/veed-4-opciones-aparecieron.png', fullPage: true });
+      // Seleccionar "solo voz" (voice only)
+      console.log('Seleccionando opcion "solo voz"...');
+      const soloVozSelectors = [
+        'text=/.*solo voz.*/i',
+        'text=/.*voice only.*/i',
+        'button:has-text("solo voz")',
+        'button:has-text("Voice only")'
+      ];
 
-    // Seleccionar "solo voz" (voice only)
-    console.log('Seleccionando opcion "solo voz"...');
-    const soloVozSelectors = [
-      'text=/.*solo voz.*/i',
-      'text=/.*voice only.*/i',
-      'button:has-text("solo voz")',
-      'button:has-text("Voice only")'
-    ];
-
-    let soloVozButton = null;
-    for (const selector of soloVozSelectors) {
-      try {
-        soloVozButton = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
-        if (soloVozButton) {
-          await soloVozButton.click();
-          console.log('Opcion "solo voz" seleccionada');
-          await page.waitForTimeout(1000);
-          break;
-        }
-      } catch (error) {
-        continue;
-      }
-    }
-
-    await page.screenshot({ path: 'screenshots/veed-5-solo-voz.png', fullPage: true });
-
-    // Seleccionar idioma español
-    console.log('Seleccionando idioma Spanish...');
-    const spanishSelectors = [
-      'text=/.*spanish.*/i',
-      'text=/.*español.*/i',
-      'select option:has-text("Spanish")',
-      '[value*="spanish"]',
-      '[value*="es"]'
-    ];
-
-    for (const selector of spanishSelectors) {
-      try {
-        const spanishOption = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
-        if (spanishOption) {
-          await spanishOption.click();
-          console.log('Idioma Spanish seleccionado');
-          await page.waitForTimeout(1000);
-          break;
-        }
-      } catch (error) {
-        continue;
-      }
-    }
-
-    await page.screenshot({ path: 'screenshots/veed-6-spanish.png', fullPage: true });
-
-    // Seleccionar voz Alex o Carolina
-    console.log('Seleccionando voz (Alex o Carolina)...');
-    const voiceSelectors = [
-      'text=/.*alex.*/i',
-      'text=/.*carolina.*/i',
-      'button:has-text("Alex")',
-      'button:has-text("Carolina")'
-    ];
-
-    let voiceSelected = false;
-    for (const selector of voiceSelectors) {
-      try {
-        const voiceButton = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
-        if (voiceButton) {
-          await voiceButton.click();
-          const voiceName = await voiceButton.innerText();
-          console.log(`Voz seleccionada: ${voiceName}`);
-          await page.waitForTimeout(1000);
-          voiceSelected = true;
-          break;
-        }
-      } catch (error) {
-        continue;
-      }
-    }
-
-    if (!voiceSelected) {
-      console.log('No se pudo seleccionar voz especifica, continuando...');
-    }
-
-    await page.screenshot({ path: 'screenshots/veed-7-voz.png', fullPage: true });
-
-    // Seleccionar subtítulos "boba"
-    console.log('Seleccionando subtitulos "boba"...');
-    const subtitulosSelectors = [
-      'text=/.*boba.*/i',
-      'button:has-text("boba")',
-      'button:has-text("Boba")',
-      '[value*="boba"]'
-    ];
-
-    for (const selector of subtitulosSelectors) {
-      try {
-        const subtitulosButton = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
-        if (subtitulosButton) {
-          await subtitulosButton.click();
-          console.log('Subtitulos "boba" seleccionados');
-          await page.waitForTimeout(1000);
-          break;
-        }
-      } catch (error) {
-        continue;
-      }
-    }
-
-    await page.screenshot({ path: 'screenshots/veed-8-subtitulos.png', fullPage: true });
-
-    // Buscar y hacer clic en el botón "Hecho"
-    console.log('Buscando boton "Hecho"...');
-    const hechoSelectors = [
-      'button:has-text("Hecho")',
-      'button:has-text("hecho")',
-      'button:has-text("Done")',
-      'button:has-text("done")',
-      'button:has-text("Finish")',
-      'button:has-text("Complete")'
-    ];
-
-    let hechoButton = null;
-    for (const selector of hechoSelectors) {
-      try {
-        hechoButton = await page.waitForSelector(selector, { timeout: 5000, state: 'visible' });
-        if (hechoButton) {
-          const isEnabled = await hechoButton.isEnabled();
-          if (isEnabled) {
-            console.log(`Boton Hecho encontrado con selector: ${selector}`);
+      let soloVozButton = null;
+      for (const selector of soloVozSelectors) {
+        try {
+          soloVozButton = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
+          if (soloVozButton) {
+            await soloVozButton.click();
+            console.log('Opcion "solo voz" seleccionada');
+            await page.waitForTimeout(1000);
             break;
           }
+        } catch (error) {
+          continue;
         }
-      } catch (error) {
-        continue;
+      }
+
+      await page.screenshot({ path: 'screenshots/veed-5-solo-voz.png', fullPage: true });
+
+      // Seleccionar idioma español
+      console.log('Seleccionando idioma Spanish...');
+      const spanishSelectors = [
+        'text=/.*spanish.*/i',
+        'text=/.*español.*/i',
+        'select option:has-text("Spanish")',
+        '[value*="spanish"]',
+        '[value*="es"]'
+      ];
+
+      for (const selector of spanishSelectors) {
+        try {
+          const spanishOption = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
+          if (spanishOption) {
+            await spanishOption.click();
+            console.log('Idioma Spanish seleccionado');
+            await page.waitForTimeout(1000);
+            break;
+          }
+        } catch (error) {
+          continue;
+        }
+      }
+
+      await page.screenshot({ path: 'screenshots/veed-6-spanish.png', fullPage: true });
+
+      // Seleccionar voz Alex o Carolina
+      console.log('Seleccionando voz (Alex o Carolina)...');
+      const voiceSelectors = [
+        'text=/.*alex.*/i',
+        'text=/.*carolina.*/i',
+        'button:has-text("Alex")',
+        'button:has-text("Carolina")'
+      ];
+
+      let voiceSelected = false;
+      for (const selector of voiceSelectors) {
+        try {
+          const voiceButton = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
+          if (voiceButton) {
+            await voiceButton.click();
+            const voiceName = await voiceButton.innerText();
+            console.log(`Voz seleccionada: ${voiceName}`);
+            await page.waitForTimeout(1000);
+            voiceSelected = true;
+            break;
+          }
+        } catch (error) {
+          continue;
+        }
+      }
+
+      if (!voiceSelected) {
+        console.log('No se pudo seleccionar voz especifica, continuando...');
+      }
+
+      await page.screenshot({ path: 'screenshots/veed-7-voz.png', fullPage: true });
+
+      // Seleccionar subtítulos "boba"
+      console.log('Seleccionando subtitulos "boba"...');
+      const subtitulosSelectors = [
+        'text=/.*boba.*/i',
+        'button:has-text("boba")',
+        'button:has-text("Boba")',
+        '[value*="boba"]'
+      ];
+
+      for (const selector of subtitulosSelectors) {
+        try {
+          const subtitulosButton = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
+          if (subtitulosButton) {
+            await subtitulosButton.click();
+            console.log('Subtitulos "boba" seleccionados');
+            await page.waitForTimeout(1000);
+            break;
+          }
+        } catch (error) {
+          continue;
+        }
+      }
+
+      await page.screenshot({ path: 'screenshots/veed-8-subtitulos.png', fullPage: true });
+
+      // Buscar y hacer clic en el botón "Hecho"
+      console.log('Buscando boton "Hecho"...');
+      const hechoSelectors = [
+        'button:has-text("Hecho")',
+        'button:has-text("hecho")',
+        'button:has-text("Done")',
+        'button:has-text("done")',
+        'button:has-text("Finish")',
+        'button:has-text("Complete")'
+      ];
+
+      let hechoButton = null;
+      for (const selector of hechoSelectors) {
+        try {
+          hechoButton = await page.waitForSelector(selector, { timeout: 5000, state: 'visible' });
+          if (hechoButton) {
+            const isEnabled = await hechoButton.isEnabled();
+            if (isEnabled) {
+              console.log(`Boton Hecho encontrado con selector: ${selector}`);
+              break;
+            }
+          }
+        } catch (error) {
+          continue;
+        }
+      }
+
+      if (!hechoButton) {
+        console.log('No se encontró botón Hecho. Continuando, puede que el flujo ya esté en render.');
+      } else {
+        await hechoButton.click();
+        console.log('Boton Hecho clickeado, comenzando renderizado...');
+        await page.screenshot({ path: 'screenshots/veed-9-hecho-clicked.png', fullPage: true });
       }
     }
-
-    if (!hechoButton) {
-      await page.screenshot({ path: 'screenshots/veed-no-hecho-button.png', fullPage: true });
-      throw new Error('No se encontro el boton Hecho.');
-    }
-
-    await hechoButton.click();
-    console.log('Boton Hecho clickeado, comenzando renderizado...');
-    await page.screenshot({ path: 'screenshots/veed-9-hecho-clicked.png', fullPage: true });
 
     // Esperar el renderizado final (puede tardar varios minutos)
     console.log('Esperando renderizado final...');
@@ -423,10 +423,32 @@ export async function generarVideo(guion) {
     const maxTiempoRender = config.timeouts.generation;
 
     while (tiempoEsperado < maxTiempoRender) {
-      const successIndicators = await page.$$('text=/.*complete.*/i, text=/.*success.*/i, text=/.*listo.*/i, text=/.*ready.*/i, video, .video-player, [class*="preview"], [class*="player"]');
-      if (successIndicators.length > 0) {
-        videoGenerado = true;
-        console.log('Video renderizado exitosamente!');
+      const successSelectors = [
+        'text=/.*complete.*/i',
+        'text=/.*success.*/i',
+        'text=/.*listo.*/i',
+        'text=/.*ready.*/i',
+        'video',
+        '.video-player',
+        '[class*="preview"]',
+        '[class*="player"]',
+        'a[href*="/video/"]',
+        'a[href*="/editor/"]'
+      ];
+
+      for (const selector of successSelectors) {
+        try {
+          const elements = await page.$$(selector);
+          if (elements.length > 0) {
+            videoGenerado = true;
+            console.log(`Video renderizado detectado con selector: ${selector}`);
+            break;
+          }
+        } catch (error) {
+          continue;
+        }
+      }
+      if (videoGenerado) {
         break;
       }
 

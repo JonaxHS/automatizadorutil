@@ -237,6 +237,7 @@ btnEnviarVeed?.addEventListener('click', async () => {
         if (response.ok) {
             mostrarNotificacion('✅ Video generado en Veed.io exitosamente', 'success');
             videoResult.innerHTML = `<a href="${result.videoUrl}" target="_blank" class="video-link">🎬 Abrir Video en Veed.io</a>`;
+            window.open(result.videoUrl, '_blank', 'noopener');
         } else {
             mostrarNotificacion(`Error: ${result.error}`, 'error');
         }
@@ -617,6 +618,7 @@ async function verGuion(nombre) {
                 if (response.ok) {
                     mostrarNotificacion('✅ Video generado en Veed.io exitosamente', 'success');
                     videoResult.innerHTML = `<a href="${result.videoUrl}" target="_blank" class="video-link">🎬 Abrir Video en Veed.io</a>`;
+                    window.open(result.videoUrl, '_blank', 'noopener');
                 } else {
                     mostrarNotificacion(`Error: ${result.error}`, 'error');
                 }
