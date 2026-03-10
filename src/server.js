@@ -21,6 +21,21 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer);
 
+// ─── Interceptar console para retransmitir logs al navegador ───────────────
+const _origLog = console.log.bind(console);
+const _origWarn = console.warn.bind(console);
+const _origError = console.error.bind(console);
+
+function emitLog(nivel, args) {
+  const mensaje = args.map(a => (typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a))).join(' ');
+  io.emit('log', { nivel, mensaje, timestamp: new Date().toISOString() });
+}
+
+console.log = (...args) => { _origLog(...args); emitLog('info', args); };
+console.warn = (...args) => { _origWarn(...args); emitLog('warn', args); };
+console.error = (...args) => { _origError(...args); emitLog('error', args); };
+// ──────────────────────────────────────────────────────────────────────────
+
 // Estado global de la automatización
 let estadoAutomatizacion = {
   ejecutando: false,
@@ -39,10 +54,10 @@ app.use(express.static(path.join(__dirname, '../public')));
 // Función para emitir actualizaciones de estado
 function emitirEstado(mensaje, progreso, tipo = 'info') {
   console.log(`[${tipo.toUpperCase()}] ${mensaje}`);
-  
+
   estadoAutomatizacion.paso = mensaje;
   estadoAutomatizacion.progreso = progreso;
-  
+
   io.emit('estado', {
     ejecutando: estadoAutomatizacion.ejecutando,
     paso: mensaje,
@@ -60,14 +75,14 @@ function guardarLog(tipo, mensaje, datos = {}) {
     mensaje,
     datos
   };
-  
+
   const logFile = path.join(process.cwd(), 'logs', `${new Date().toISOString().split('T')[0]}.json`);
-  
+
   // Asegurar que existe el directorio de logs
   if (!fs.existsSync(path.join(process.cwd(), 'logs'))) {
     fs.mkdirSync(path.join(process.cwd(), 'logs'), { recursive: true });
   }
-  
+
   // Agregar al archivo de log
   let logs = [];
   if (fs.existsSync(logFile)) {
@@ -77,7 +92,7 @@ function guardarLog(tipo, mensaje, datos = {}) {
       logs = [];
     }
   }
-  
+
   logs.push(logEntry);
   fs.writeFileSync(logFile, JSON.stringify(logs, null, 2));
 }
@@ -202,17 +217,17 @@ app.post('/api/auth/cancel', async (req, res) => {
 // Actualizar configuración
 app.post('/api/config', (req, res) => {
   const { tema, duracion, qwenChatUrl } = req.body;
-  
+
   if (estadoAutomatizacion.ejecutando) {
     return res.status(400).json({ error: 'No se puede cambiar la configuración mientras se ejecuta una automatización' });
   }
-  
+
   if (tema) {
     config.video.tema = tema;
     process.env.VIDEO_TEMA = tema;
     persistirVariableEnv('VIDEO_TEMA', tema);
   }
-  
+
   if (duracion) {
     config.video.duracion = parseInt(duracion);
     process.env.VIDEO_DURACION = duracion.toString();
@@ -224,7 +239,7 @@ app.post('/api/config', (req, res) => {
     process.env.QWEN_CHAT_URL = qwenChatUrl;
     persistirVariableEnv('QWEN_CHAT_URL', qwenChatUrl);
   }
-  
+
   res.json({
     mensaje: 'Configuración actualizada',
     config: {
@@ -251,7 +266,7 @@ app.post('/api/test-qwen', async (req, res) => {
 
   try {
     emitirEstado('Probando generación de guion con Qwen AI...', 10, 'info');
-    
+
     // Crear carpeta si no existe
     if (!fs.existsSync('guiones')) {
       fs.mkdirSync('guiones', { recursive: true });
@@ -262,13 +277,13 @@ app.post('/api/test-qwen', async (req, res) => {
     const descripcion = typeof resultadoQwen === 'string' ? '' : resultadoQwen.descripcion;
 
     emitirEstado('Guion generado exitosamente con Qwen', 100, 'success');
-    
+
     // Guardar guion
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const nombreArchivo = `guion-test-${timestamp}.txt`;
     const rutaGuion = path.join('guiones', nombreArchivo);
     fs.writeFileSync(rutaGuion, guion, 'utf-8');
-    
+
     estadoAutomatizacion.ultimoGuion = {
       archivo: nombreArchivo,
       contenido: guion,
@@ -312,11 +327,11 @@ app.post('/api/test-veed', async (req, res) => {
 
   try {
     emitirEstado('Enviando guion a Veed.io AI Studio...', 20, 'info');
-    
+
     const urlVideo = await generarVideo(guion);
 
     emitirEstado('Video generado exitosamente en Veed.io', 100, 'success');
-    
+
     estadoAutomatizacion.ultimoVideo = {
       url: urlVideo,
       fecha: new Date().toISOString()
@@ -345,18 +360,18 @@ app.post('/api/iniciar', async (req, res) => {
   if (estadoAutomatizacion.ejecutando) {
     return res.status(400).json({ error: 'Ya hay una automatización en ejecución' });
   }
-  
+
   const { tema, duracion } = req.body;
-  
+
   // Actualizar config temporalmente si se proporciona
   const temaOriginal = config.video.tema;
   const duracionOriginal = config.video.duracion;
-  
+
   if (tema) config.video.tema = tema;
   if (duracion) config.video.duracion = parseInt(duracion);
-  
+
   res.json({ mensaje: 'Automatización iniciada', id: Date.now() });
-  
+
   // Ejecutar en segundo plano
   ejecutarAutomatizacion().finally(() => {
     // Restaurar config original
@@ -369,13 +384,13 @@ app.post('/api/iniciar', async (req, res) => {
 async function ejecutarAutomatizacion() {
   estadoAutomatizacion.ejecutando = true;
   estadoAutomatizacion.ultimoError = null;
-  
+
   const ejecucionId = Date.now();
-  
+
   try {
     emitirEstado('Iniciando automatización...', 0, 'info');
     guardarLog('inicio', 'Automatización iniciada', { tema: config.video.tema });
-    
+
     // Crear carpetas necesarias
     const carpetas = ['screenshots', 'guiones', 'videos', 'logs'];
     for (const carpeta of carpetas) {
@@ -383,46 +398,46 @@ async function ejecutarAutomatizacion() {
         fs.mkdirSync(carpeta, { recursive: true });
       }
     }
-    
+
     emitirEstado('Generando guion con Qwen AI...', 10, 'info');
-    
+
     // PASO 1: Generar guion
     const resultadoQwen = await generarGuion(config.video.tema);
     const guion = typeof resultadoQwen === 'string' ? resultadoQwen : resultadoQwen.guion;
     const descripcion = typeof resultadoQwen === 'string' ? '' : resultadoQwen.descripcion;
-    
+
     emitirEstado('Guion generado exitosamente', 40, 'success');
-    
+
     // Guardar guion
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const nombreArchivo = `guion-${timestamp}.txt`;
     const rutaGuion = path.join('guiones', nombreArchivo);
-    
+
     fs.writeFileSync(rutaGuion, guion, 'utf-8');
-    
+
     estadoAutomatizacion.ultimoGuion = {
       archivo: nombreArchivo,
       contenido: guion,
       descripcion,
       fecha: new Date().toISOString()
     };
-    
+
     guardarLog('guion', 'Guion generado', { archivo: nombreArchivo, longitud: guion.length });
-    
+
     emitirEstado('Iniciando generación de video en Veed.io...', 50, 'info');
-    
+
     // PASO 2: Generar video
     const urlVideo = await generarVideo(guion);
-    
+
     emitirEstado('Video generado exitosamente', 90, 'success');
-    
+
     estadoAutomatizacion.ultimoVideo = {
       url: urlVideo,
       fecha: new Date().toISOString()
     };
-    
+
     guardarLog('video', 'Video generado', { url: urlVideo });
-    
+
     // Agregar al historial
     estadoAutomatizacion.historial.unshift({
       id: ejecucionId,
@@ -432,23 +447,23 @@ async function ejecutarAutomatizacion() {
       video: urlVideo,
       exito: true
     });
-    
+
     // Mantener solo los últimos 50
     if (estadoAutomatizacion.historial.length > 50) {
       estadoAutomatizacion.historial = estadoAutomatizacion.historial.slice(0, 50);
     }
-    
+
     emitirEstado('Automatización completada exitosamente', 100, 'success');
     guardarLog('completado', 'Automatización completada', { id: ejecucionId });
-    
+
   } catch (error) {
     console.error('Error en automatización:', error);
-    
+
     estadoAutomatizacion.ultimoError = {
       mensaje: error.message,
       fecha: new Date().toISOString()
     };
-    
+
     estadoAutomatizacion.historial.unshift({
       id: ejecucionId,
       fecha: new Date().toISOString(),
@@ -456,10 +471,10 @@ async function ejecutarAutomatizacion() {
       error: error.message,
       exito: false
     });
-    
+
     emitirEstado(`Error: ${error.message}`, estadoAutomatizacion.progreso, 'error');
     guardarLog('error', 'Error en automatización', { error: error.message });
-    
+
   } finally {
     estadoAutomatizacion.ejecutando = false;
   }
@@ -468,11 +483,11 @@ async function ejecutarAutomatizacion() {
 // Obtener lista de guiones
 app.get('/api/guiones', (req, res) => {
   const guionesDir = path.join(process.cwd(), 'guiones');
-  
+
   if (!fs.existsSync(guionesDir)) {
     return res.json([]);
   }
-  
+
   const archivos = fs.readdirSync(guionesDir)
     .filter(f => f.endsWith('.txt'))
     .map(f => {
@@ -484,18 +499,18 @@ app.get('/api/guiones', (req, res) => {
       };
     })
     .sort((a, b) => b.fecha - a.fecha);
-  
+
   res.json(archivos);
 });
 
 // Obtener contenido de un guion
 app.get('/api/guiones/:nombre', (req, res) => {
   const rutaGuion = path.join(process.cwd(), 'guiones', req.params.nombre);
-  
+
   if (!fs.existsSync(rutaGuion)) {
     return res.status(404).json({ error: 'Guion no encontrado' });
   }
-  
+
   const contenido = fs.readFileSync(rutaGuion, 'utf-8');
   res.json({ nombre: req.params.nombre, contenido });
 });
@@ -508,7 +523,7 @@ app.get('/api/historial', (req, res) => {
 // WebSocket para actualizaciones en tiempo real
 io.on('connection', (socket) => {
   console.log('Cliente conectado:', socket.id);
-  
+
   // Enviar estado actual al conectarse
   socket.emit('estado', {
     ejecutando: estadoAutomatizacion.ejecutando,
@@ -518,7 +533,7 @@ io.on('connection', (socket) => {
   });
 
   socket.emit('auth_estado', getEstadoAutenticacion());
-  
+
   socket.on('disconnect', () => {
     console.log('Cliente desconectado:', socket.id);
   });

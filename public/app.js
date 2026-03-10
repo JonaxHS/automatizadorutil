@@ -83,6 +83,45 @@ socket.on('auth_estado', () => {
     cargarEstadoAuth();
 });
 
+// ─── Consola de Logs en tiempo real ────────────────────────────────────────
+const consolaLogs = document.getElementById('consolaLogs');
+const btnLimpiar = document.getElementById('btnLimpiarLogs');
+const chkAutoScroll = document.getElementById('logsAutoScroll');
+const MAX_LOG_LINES = 500;
+
+function agregarLineaConsola(nivel, mensaje, timestamp) {
+    const line = document.createElement('div');
+    line.className = `consola-line consola-${nivel}`;
+
+    const ts = new Date(timestamp).toLocaleTimeString('es-MX', { hour12: false });
+    const prefix = nivel === 'error' ? '✖' : nivel === 'warn' ? '⚠' : '›';
+
+    line.innerHTML = `<span class="consola-ts">${ts}</span><span class="consola-prefix">${prefix}</span><span class="consola-msg">${escapeHtml(mensaje)}</span>`;
+    consolaLogs.appendChild(line);
+
+    // Límite de líneas para no llenar la memoria
+    while (consolaLogs.children.length > MAX_LOG_LINES) {
+        consolaLogs.removeChild(consolaLogs.firstChild);
+    }
+
+    if (chkAutoScroll && chkAutoScroll.checked) {
+        consolaLogs.scrollTop = consolaLogs.scrollHeight;
+    }
+}
+
+function escapeHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+socket.on('log', (data) => {
+    agregarLineaConsola(data.nivel, data.mensaje, data.timestamp);
+});
+
+btnLimpiar?.addEventListener('click', () => {
+    consolaLogs.innerHTML = '';
+});
+// ──────────────────────────────────────────────────────────────────────────
+
 async function cargarEstadoAuth() {
     try {
         const response = await fetch('/api/auth/status');
@@ -223,17 +262,17 @@ btnEnviarVeed?.addEventListener('click', async () => {
         btnIniciar.disabled = true;
         estadoActual.ejecutando = true;
         statusPanel.style.display = 'block';
-        
+
         mostrarNotificacion('Enviando guion a Veed.io...', 'info');
-        
+
         const response = await fetch('/api/test-veed', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ guion: estadoActual.guionActual })
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             mostrarNotificacion('✅ Video generado en Veed.io exitosamente', 'success');
             videoResult.innerHTML = `<a href="${result.videoUrl}" target="_blank" class="video-link">🎬 Abrir Video en Veed.io</a>`;
@@ -257,7 +296,7 @@ async function cargarConfiguracion() {
     try {
         const response = await fetch('/api/config');
         const config = await response.json();
-        
+
         inputTema.value = config.tema;
         inputQwenChatUrl.value = config.qwenChatUrl || '';
     } catch (error) {
@@ -269,7 +308,7 @@ async function cargarConfiguracion() {
 btnGuardarConfig.addEventListener('click', async () => {
     const tema = inputTema.value.trim();
     const qwenChatUrl = inputQwenChatUrl.value.trim();
-    
+
     if (!tema) {
         mostrarNotificacion('Por favor, ingresa un tema', 'error');
         return;
@@ -279,16 +318,16 @@ btnGuardarConfig.addEventListener('click', async () => {
         mostrarNotificacion('Ingresa una URL valida para el chat de Qwen', 'error');
         return;
     }
-    
+
     try {
         const response = await fetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tema, qwenChatUrl })
+            body: JSON.stringify({ tema, qwenChatUrl })
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             mostrarNotificacion('Configuración guardada', 'success');
         } else {
@@ -302,7 +341,7 @@ btnGuardarConfig.addEventListener('click', async () => {
 // Probar solo generación de guion con Qwen
 btnTestQwen.addEventListener('click', async () => {
     const tema = inputTema.value.trim();
-    
+
     if (!tema) {
         mostrarNotificacion('Por favor, ingresa un tema para el guion', 'error');
         return;
@@ -312,32 +351,32 @@ btnTestQwen.addEventListener('click', async () => {
         mostrarNotificacion('Ya hay una operación en ejecución', 'warning');
         return;
     }
-    
+
     try {
         estadoActual.ejecutando = true;
         btnTestQwen.disabled = true;
         btnIniciar.disabled = true;
         btnEnviarVeed.disabled = true;
         statusPanel.style.display = 'block';
-        
+
         const response = await fetch('/api/test-qwen', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tema })
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             mostrarNotificacion('✅ Guion generado con Qwen exitosamente', 'success');
             resultsPanel.style.display = 'block';
             guionPreview.textContent = result.guion || 'Sin guion detectado';
             descripcionPreview.textContent = result.descripcion || 'Sin descripción detectada';
-            
+
             // Guardar guion para enviarlo a Veed después
             estadoActual.guionActual = result.guion;
             btnEnviarVeed.style.display = 'inline-block';
-            
+
             cargarGuiones();
         } else {
             mostrarNotificacion(`Error: ${result.error}`, 'error');
@@ -356,34 +395,34 @@ btnTestQwen.addEventListener('click', async () => {
 // Iniciar automatización
 btnIniciar.addEventListener('click', async () => {
     const tema = inputTema.value.trim();
-    
+
     if (!tema) {
         mostrarNotificacion('Por favor, ingresa un tema', 'error');
         return;
     }
-    
+
     if (estadoActual.ejecutando) {
         mostrarNotificacion('Ya hay una automatización en ejecución', 'warning');
         return;
     }
-    
+
     btnIniciar.disabled = true;
     btnGuardarConfig.disabled = true;
     inputTema.disabled = true;
-    
+
     statusPanel.style.display = 'block';
     resultsPanel.style.display = 'none';
     logsContainer.innerHTML = '';
-    
+
     try {
         const response = await fetch('/api/iniciar', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tema })
+            body: JSON.stringify({ tema })
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok) {
             mostrarNotificacion('Automatización iniciada', 'success');
         } else {
@@ -399,10 +438,10 @@ btnIniciar.addEventListener('click', async () => {
 // Actualizar estado en la UI
 function actualizarEstado(data) {
     estadoActual.ejecutando = data.ejecutando;
-    
+
     // Actualizar badge
     statusBadge.className = 'status-badge';
-    
+
     if (data.ejecutando) {
         statusBadge.classList.add('ejecutando');
         statusText.textContent = 'Ejecutando';
@@ -421,14 +460,14 @@ function actualizarEstado(data) {
     } else {
         statusText.textContent = 'Inactivo';
     }
-    
+
     // Actualizar progreso
     progressFill.style.width = data.progreso + '%';
     progressText.textContent = data.progreso + '%';
-    
+
     // Actualizar mensaje
     statusMessage.textContent = data.paso;
-    
+
     // Agregar log
     if (data.paso) {
         agregarLog(data.paso, data.tipo, data.timestamp);
@@ -439,10 +478,10 @@ function actualizarEstado(data) {
 function agregarLog(mensaje, tipo, timestamp) {
     const logEntry = document.createElement('div');
     logEntry.className = `log-entry ${tipo}`;
-    
+
     const time = new Date(timestamp).toLocaleTimeString();
     logEntry.textContent = `[${time}] ${mensaje}`;
-    
+
     logsContainer.appendChild(logEntry);
     logsContainer.scrollTop = logsContainer.scrollHeight;
 }
@@ -459,9 +498,9 @@ async function mostrarResultados() {
     try {
         const response = await fetch('/api/estado');
         const estado = await response.json();
-        
+
         resultsPanel.style.display = 'block';
-        
+
         // Mostrar guion y descripcion
         if (estado.ultimoGuion) {
             guionPreview.textContent = estado.ultimoGuion.contenido || '';
@@ -469,7 +508,7 @@ async function mostrarResultados() {
             btnCopiarGuion.style.display = 'inline-flex';
             btnCopiarGuion.onclick = () => copiarTexto(estado.ultimoGuion.contenido || '');
         }
-        
+
         // Mostrar video
         if (estado.ultimoVideo) {
             videoResult.innerHTML = `
@@ -491,21 +530,21 @@ async function cargarHistorial() {
     try {
         const response = await fetch('/api/historial');
         const historial = await response.json();
-        
+
         if (historial.length === 0) {
             historialContainer.innerHTML = '<p class="placeholder">No hay ejecuciones previas</p>';
             return;
         }
-        
+
         historialContainer.innerHTML = '';
-        
+
         historial.forEach(item => {
             const div = document.createElement('div');
             div.className = `history-item ${item.exito ? 'success' : 'error'}`;
-            
+
             const fecha = new Date(item.fecha).toLocaleString();
             const icono = item.exito ? '✅' : '❌';
-            
+
             div.innerHTML = `
                 <div class="history-item-header">
                     <span class="history-item-title">${icono} ${item.exito ? 'Exitoso' : 'Error'}</span>
@@ -514,12 +553,12 @@ async function cargarHistorial() {
                 <div class="history-item-tema">${item.tema}</div>
                 ${item.error ? `<div style="color: var(--error); font-size: 0.85rem; margin-top: 5px;">Error: ${item.error}</div>` : ''}
             `;
-            
+
             if (item.guion) {
                 div.style.cursor = 'pointer';
                 div.onclick = () => verGuion(item.guion);
             }
-            
+
             historialContainer.appendChild(div);
         });
     } catch (error) {
@@ -532,27 +571,27 @@ async function cargarGuiones() {
     try {
         const response = await fetch('/api/guiones');
         const guiones = await response.json();
-        
+
         if (guiones.length === 0) {
             guionesLista.innerHTML = '<p class="placeholder">No hay guiones guardados</p>';
             return;
         }
-        
+
         guionesLista.innerHTML = '';
-        
+
         guiones.forEach(guion => {
             const div = document.createElement('div');
             div.className = 'script-item';
             div.onclick = () => verGuion(guion.nombre);
-            
+
             const fecha = new Date(guion.fecha).toLocaleString();
             const tamano = (guion.tamano / 1024).toFixed(2);
-            
+
             div.innerHTML = `
                 <div class="script-item-name">📝 ${guion.nombre}</div>
                 <div class="script-item-info">${fecha} • ${tamano} KB</div>
             `;
-            
+
             guionesLista.appendChild(div);
         });
     } catch (error) {
@@ -565,38 +604,38 @@ async function verGuion(nombre) {
     try {
         const response = await fetch(`/api/guiones/${nombre}`);
         const data = await response.json();
-        
+
         modalTitulo.textContent = data.nombre;
         modalContenido.textContent = data.contenido;
-        
+
         // Guardar guion para poder enviarlo a Veed
         estadoActual.guionActual = data.contenido;
-        
+
         modal.classList.add('show');
-        
+
         btnCopiarGuionModal.onclick = () => {
             copiarTexto(data.contenido);
             mostrarNotificacion('Guion copiado al portapapeles', 'success');
         };
-        
+
         btnEnviarVeedModal.onclick = async () => {
             // Cerrar modal
             modal.classList.remove('show');
-            
+
             // Mostrar guion en el panel de resultados
             resultsPanel.style.display = 'block';
             guionPreview.textContent = data.contenido;
             btnEnviarVeed.style.display = 'inline-block';
-            
+
             // Preguntar si quiere enviar a Veed
             const confirmar = confirm('¿Enviar este guion a Veed.io para generar el video? El proceso puede tardar varios minutos.');
             if (!confirmar) return;
-            
+
             if (estadoActual.ejecutando) {
                 mostrarNotificacion('Ya hay una operación en ejecución', 'warning');
                 return;
             }
-            
+
             try {
                 btnEnviarVeed.disabled = true;
                 btnEnviarVeedModal.disabled = true;
@@ -604,17 +643,17 @@ async function verGuion(nombre) {
                 btnIniciar.disabled = true;
                 estadoActual.ejecutando = true;
                 statusPanel.style.display = 'block';
-                
+
                 mostrarNotificacion('Enviando guion a Veed.io...', 'info');
-                
+
                 const response = await fetch('/api/test-veed', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ guion: data.contenido })
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (response.ok) {
                     mostrarNotificacion('✅ Video generado en Veed.io exitosamente', 'success');
                     videoResult.innerHTML = `<a href="${result.videoUrl}" target="_blank" class="video-link">🎬 Abrir Video en Veed.io</a>`;
@@ -679,9 +718,9 @@ function mostrarNotificacion(mensaje, tipo) {
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         animation: slideIn 0.3s ease;
     `;
-    
+
     document.body.appendChild(notif);
-    
+
     setTimeout(() => {
         notif.style.animation = 'slideOut 0.3s ease';
         setTimeout(() => notif.remove(), 300);

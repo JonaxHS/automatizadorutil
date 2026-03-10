@@ -127,6 +127,21 @@
                 </div>
             </section>
 
+            <!-- Consola de Logs en tiempo real -->
+            <section class="card logs-panel">
+                <div class="logs-header">
+                    <h2>🖥️ Consola de Logs</h2>
+                    <div class="logs-controls">
+                        <label class="logs-toggle">
+                            <input type="checkbox" id="logsAutoScroll" checked>
+                            Auto-scroll
+                        </label>
+                        <button id="btnLimpiarLogs" class="btn btn-small">🗑️ Limpiar</button>
+                    </div>
+                </div>
+                <div id="consolaLogs" class="consola-logs"></div>
+            </section>
+
             <!-- Historial -->
             <section class="card history-panel">
                 <h2>📚 Historial de Ejecuciones</h2>
