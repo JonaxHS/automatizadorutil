@@ -4,6 +4,7 @@ import path from 'path';
 import { config } from '../config.js';
 import { generarGuion } from './qwen.js';
 import { generarVideo } from './veed.js';
+import { getPromptSiguiente, marcarReelCompletado, getEstadoSeries, reiniciarProgreso, REELS_POR_SERIE } from './series.js';
 
 // ─── Estado compartido ──────────────────────────────────────────────────────
 let pendienteAprobacion = null; // { chatId, guion, descripcion, resolve }
@@ -57,7 +58,6 @@ export function iniciarBot(emitirEstado) {
 
     async function verificar(msg) {
         const chatId = msg.chat.id;
-        // Si no hay chat registrado, registrar al primer usuario
         if (!chatIdAutorizado) {
             chatIdAutorizado = chatId;
             guardarChatIdAutorizado(chatId);
@@ -75,24 +75,28 @@ export function iniciarBot(emitirEstado) {
         if (!await verificar(msg)) return;
         await bot.sendMessage(msg.chat.id,
             `🎬 *Automatizador de Videos*\n\n` +
-            `Comandos disponibles:\n\n` +
-            `📝 */manual <tema>*\n` +
-            `Genera el guion con Qwen y lo envía para que lo revises antes de pasar a Veed.io\n\n` +
-            `🚀 */auto <tema>*\n` +
-            `Genera el guion y el video automáticamente sin confirmación\n\n` +
-            `📊 */estado* — Estado actual\n` +
-            `❌ */cancelar* — Cancelar operación en curso`,
+            `*Comandos de tema libre:*\n` +
+            `📝 /manual _<tema>_ — Genera guion y pide aprobación antes de Veed\n` +
+            `🚀 /auto _<tema>_ — Completo sin confirmación\n\n` +
+            `*Comandos de series (Google Sheets):*\n` +
+            `📺 /series — Siguiente reel (modo manual con aprobación)\n` +
+            `⚡ /seriesauto — Siguiente reel sin confirmación\n` +
+            `📊 /estadoseries — Ver serie y reel actual\n` +
+            `🔄 /reiniciarseries — Empezar desde la primera serie\n\n` +
+            `*Utilidades:*\n` +
+            `📈 /estadobot — Estado del sistema\n` +
+            `❌ /cancelar — Cancelar aprobación pendiente`,
             { parse_mode: 'Markdown' }
         );
     });
 
-    // ── /estado ───────────────────────────────────────────────────────────────
-    bot.onText(/\/estado/, async (msg) => {
+    // ── /estadobot ────────────────────────────────────────────────────────────
+    bot.onText(/\/(estado|estadobot)$/, async (msg) => {
         if (!await verificar(msg)) return;
-        const estado = ejecutando
+        const txt = ejecutando
             ? '⏳ Hay una automatización en curso.'
-            : '✅ El sistema está libre, listo para usarse.';
-        await bot.sendMessage(msg.chat.id, estado);
+            : '✅ El sistema está libre.';
+        await bot.sendMessage(msg.chat.id, txt);
     });
 
     // ── /cancelar ─────────────────────────────────────────────────────────────
@@ -105,21 +109,21 @@ export function iniciarBot(emitirEstado) {
         } else if (!ejecutando) {
             await bot.sendMessage(msg.chat.id, 'ℹ️ No hay ninguna operación en curso.');
         } else {
-            await bot.sendMessage(msg.chat.id, '⚠️ Hay una automatización en curso que no puede cancelarse desde aquí.');
+            await bot.sendMessage(msg.chat.id, '⚠️ Hay una automatización activa que no puede cancelarse desde aquí.');
         }
     });
 
-    // ── Flujo compartido Qwen → (aprobación?) → Veed ─────────────────────────
-    async function ejecutarFlujo(chatId, tema, modoManual) {
+    // ── Flujo base Qwen → (aprobación?) → Veed ───────────────────────────────
+    // onExito: callback opcional que se llama antes de terminar (para marcar reel, etc.)
+    async function ejecutarFlujo(chatId, tema, modoManual, onExito = null) {
         if (ejecutando) {
             await bot.sendMessage(chatId, '⚠️ Ya hay una automatización en curso. Espera a que termine.');
-            return;
+            return false;
         }
 
         ejecutando = true;
         try {
-            // PASO 1: Generar guion con Qwen
-            await bot.sendMessage(chatId, `⏳ Generando guion con Qwen AI para el tema:\n_${tema}_`, { parse_mode: 'Markdown' });
+            await bot.sendMessage(chatId, `⏳ Generando guion con Qwen AI...`, { parse_mode: 'Markdown' });
             if (emitirEstado) emitirEstado('Telegram: Generando guion con Qwen...', 10, 'info');
 
             const resultado = await generarGuion(tema);
@@ -129,7 +133,7 @@ export function iniciarBot(emitirEstado) {
             if (emitirEstado) emitirEstado('Telegram: Guion generado', 40, 'success');
 
             if (modoManual) {
-                // ── Modo Manual: enviar para revisión ──────────────────────────────
+                // Enviar guion para revisión
                 await bot.sendMessage(chatId,
                     `📝 *Guion generado:*\n\n\`\`\`\n${truncar(guion, 3000)}\n\`\`\``,
                     { parse_mode: 'Markdown' }
@@ -154,55 +158,50 @@ export function iniciarBot(emitirEstado) {
                     }
                 );
 
-                // Esperar respuesta del inline keyboard (timeout 10 min)
+                // Esperar respuesta (timeout 10 min)
                 const decision = await new Promise((resolve) => {
-                    pendienteAprobacion = { chatId, guion, descripcion, resolve };
+                    pendienteAprobacion = { chatId, resolve };
                     setTimeout(() => {
-                        if (pendienteAprobacion) {
-                            pendienteAprobacion = null;
-                            resolve('timeout');
-                        }
+                        if (pendienteAprobacion) { pendienteAprobacion = null; resolve('timeout'); }
                     }, 10 * 60 * 1000);
                 });
 
                 if (decision !== 'aprobar') {
                     await bot.sendMessage(chatId, decision === 'timeout'
-                        ? '⏰ Tiempo agotado. La generación del video fue cancelada.'
+                        ? '⏰ Tiempo agotado. Cancelado.'
                         : '❌ Video cancelado.');
-                    return;
+                    return false;
                 }
 
-                await bot.sendMessage(chatId, '✅ Guion aprobado. Enviando a Veed.io...');
+                await bot.sendMessage(chatId, '✅ Aprobado. Enviando a Veed.io...');
                 if (emitirEstado) emitirEstado('Telegram: Guion aprobado, iniciando Veed...', 50, 'info');
-                await generarYNotificar(chatId, guion, emitirEstado);
 
             } else {
-                // ── Modo Automático ─────────────────────────────────────────────────
-                await bot.sendMessage(chatId,
-                    `✅ Guion listo (${guion.length} caracteres). Enviando directamente a Veed.io...`
-                );
+                await bot.sendMessage(chatId, `✅ Guion listo. Enviando directamente a Veed.io...`);
                 if (emitirEstado) emitirEstado('Telegram auto: enviando a Veed...', 50, 'info');
-                await generarYNotificar(chatId, guion, emitirEstado);
             }
+
+            // Generar video
+            await bot.sendMessage(chatId, '🎬 Generando video en Veed.io... (puede tardar varios minutos)');
+            const urlVideo = await generarVideo(guion);
+            if (emitirEstado) emitirEstado('Telegram: Video generado exitosamente', 100, 'success');
+            await bot.sendMessage(chatId,
+                `🎉 *¡Video generado exitosamente!*\n\n🔗 [Abrir en Veed.io](${urlVideo})`,
+                { parse_mode: 'Markdown' }
+            );
+
+            if (onExito) await onExito(guion, descripcion, urlVideo);
+            return true;
 
         } catch (error) {
             console.error('[Telegram] Error en flujo:', error.message);
             await bot.sendMessage(chatId, `❌ Error: ${error.message}`);
             if (emitirEstado) emitirEstado(`Telegram error: ${error.message}`, 0, 'error');
+            return false;
         } finally {
             ejecutando = false;
             pendienteAprobacion = null;
         }
-    }
-
-    async function generarYNotificar(chatId, guion, emitirEstado) {
-        await bot.sendMessage(chatId, '🎬 Generando video en Veed.io... (puede tardar varios minutos)');
-        const urlVideo = await generarVideo(guion);
-        if (emitirEstado) emitirEstado('Telegram: Video generado exitosamente', 100, 'success');
-        await bot.sendMessage(chatId,
-            `🎉 *¡Video generado exitosamente!*\n\n🔗 [Abrir en Veed.io](${urlVideo})`,
-            { parse_mode: 'Markdown' }
-        );
     }
 
     // ── /manual <tema> ────────────────────────────────────────────────────────
@@ -210,7 +209,9 @@ export function iniciarBot(emitirEstado) {
         if (!await verificar(msg)) return;
         const tema = match?.[1]?.trim();
         if (!tema) {
-            await bot.sendMessage(msg.chat.id, '⚠️ Escribe el tema. Ejemplo:\n`/manual inteligencia artificial`', { parse_mode: 'Markdown' });
+            await bot.sendMessage(msg.chat.id,
+                '⚠️ Escribe el tema. Ejemplo:\n`/manual inteligencia artificial`',
+                { parse_mode: 'Markdown' });
             return;
         }
         ejecutarFlujo(msg.chat.id, tema, true);
@@ -221,10 +222,86 @@ export function iniciarBot(emitirEstado) {
         if (!await verificar(msg)) return;
         const tema = match?.[1]?.trim();
         if (!tema) {
-            await bot.sendMessage(msg.chat.id, '⚠️ Escribe el tema. Ejemplo:\n`/auto computación cuántica`', { parse_mode: 'Markdown' });
+            await bot.sendMessage(msg.chat.id,
+                '⚠️ Escribe el tema. Ejemplo:\n`/auto computación cuántica`',
+                { parse_mode: 'Markdown' });
             return;
         }
         ejecutarFlujo(msg.chat.id, tema, false);
+    });
+
+    // ── /series y /seriesauto ─────────────────────────────────────────────────
+    async function ejecutarSiguienteReel(chatId, modoManual) {
+        if (ejecutando) {
+            await bot.sendMessage(chatId, '⚠️ Ya hay una automatización en curso.');
+            return;
+        }
+        try {
+            const info = await getPromptSiguiente();
+            const etiqueta = info.esNuevaSerie
+                ? `🆕 *Nueva serie:* _${info.titulo}_`
+                : `📺 *Continuando:* _${info.titulo}_ — Reel ${info.reelHumano}/${REELS_POR_SERIE}`;
+
+            await bot.sendMessage(chatId,
+                `${etiqueta}\n\n💬 Prompt enviado a Qwen:\n\`${info.prompt}\``,
+                { parse_mode: 'Markdown' }
+            );
+
+            const exito = await ejecutarFlujo(chatId, info.prompt, modoManual, async () => {
+                await marcarReelCompletado();
+                const siguiente = await getPromptSiguiente();
+                const txtSig = siguiente.esNuevaSerie
+                    ? `✅ Serie _"${info.titulo}"_ completada.\n🔄 Próxima: *${siguiente.titulo}*`
+                    : `✅ Reel ${info.reelHumano}/${REELS_POR_SERIE} de _"${info.titulo}"_ listo.\n➡️ Siguiente: Reel ${siguiente.reelHumano}/${REELS_POR_SERIE}`;
+                await bot.sendMessage(chatId, txtSig, { parse_mode: 'Markdown' });
+            });
+
+            if (!exito && (pendienteAprobacion === null)) {
+                // Fue cancelado: también avanzar el contador si se quiere
+                // (no avanzamos — el reel queda pendiente para el siguiente /series)
+            }
+        } catch (error) {
+            console.error('[Telegram/series] Error:', error.message);
+            await bot.sendMessage(chatId, `❌ Error al cargar series: ${error.message}`);
+        }
+    }
+
+    bot.onText(/\/series$/, async (msg) => {
+        if (!await verificar(msg)) return;
+        ejecutarSiguienteReel(msg.chat.id, true);
+    });
+
+    bot.onText(/\/seriesauto/, async (msg) => {
+        if (!await verificar(msg)) return;
+        ejecutarSiguienteReel(msg.chat.id, false);
+    });
+
+    // ── /estadoseries ─────────────────────────────────────────────────────────
+    bot.onText(/\/estadoseries/, async (msg) => {
+        if (!await verificar(msg)) return;
+        try {
+            const e = await getEstadoSeries();
+            if (e.error) { await bot.sendMessage(msg.chat.id, `❌ ${e.error}`); return; }
+            const barraLlena = '█'.repeat(e.reelActual);
+            const barraVacia = '░'.repeat(REELS_POR_SERIE - e.reelActual);
+            await bot.sendMessage(msg.chat.id,
+                `📊 *Estado de Series*\n\n` +
+                `📺 Serie: *${e.serieActual}*\n` +
+                `🎯 Reel: *${e.reelActual}/${e.totalReelsSerie}*  ${barraLlena}${barraVacia}\n` +
+                `📌 Serie ${e.serieIndex + 1} de ${e.totalSeries}\n` +
+                `📌 Reels completados: ${e.completados} / ${e.total}`,
+                { parse_mode: 'Markdown' }
+            );
+        } catch (error) {
+            await bot.sendMessage(msg.chat.id, `❌ ${error.message}`);
+        }
+    });
+
+    // ── /reiniciarseries ──────────────────────────────────────────────────────
+    bot.onText(/\/reiniciarseries/, async (msg) => {
+        if (!await verificar(msg)) return;
+        reiniciarProgreso();
+        await bot.sendMessage(msg.chat.id, '🔄 Progreso reiniciado. Comenzará desde la primera serie.');
     });
 
     // ── Inline keyboard callbacks (aprobar / cancelar) ────────────────────────
@@ -243,7 +320,6 @@ export function iniciarBot(emitirEstado) {
         pendienteAprobacion.resolve(decision);
         pendienteAprobacion = null;
 
-        // Editar el mensaje del botón para mostrar la decisión
         try {
             await bot.editMessageReplyMarkup(
                 { inline_keyboard: [] },

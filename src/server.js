@@ -14,6 +14,7 @@ import {
 } from './auth.js';
 import { config } from '../config.js';
 import { iniciarBot } from './telegram.js';
+import { getEstadoSeries, getPromptSiguiente, marcarReelCompletado, reiniciarProgreso } from './series.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -568,6 +569,33 @@ app.delete('/api/screenshots/:nombre', (req, res) => {
 // Obtener historial
 app.get('/api/historial', (req, res) => {
   res.json(estadoAutomatizacion.historial);
+});
+
+// ── Series API ──────────────────────────────────────────────────────────────
+
+app.get('/api/series', async (req, res) => {
+  try {
+    const estado = await getEstadoSeries();
+    const siguiente = await getPromptSiguiente();
+    res.json({ ...estado, siguientePrompt: siguiente.prompt });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/series/avanzar', async (req, res) => {
+  try {
+    const nuevo = await marcarReelCompletado();
+    const estado = await getEstadoSeries();
+    res.json({ ok: true, ...estado });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/series/reiniciar', (req, res) => {
+  reiniciarProgreso();
+  res.json({ ok: true, mensaje: 'Progreso reiniciado' });
 });
 
 // WebSocket para actualizaciones en tiempo real

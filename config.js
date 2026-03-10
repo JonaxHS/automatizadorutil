@@ -32,5 +32,8 @@ export const config = {
   telegram: {
     token: process.env.TELEGRAM_BOT_TOKEN || '',
     chatId: process.env.TELEGRAM_CHAT_ID || ''
-  }
-};
+  },
+
+  // Google Sheets — Series
+  googleSheetId: process.env.GOOGLE_SHEET_ID || '1CutBXAFfeu4UWZ0LOxl9p3lwN7D58TTftVVIMbjm6dk'
+}
