@@ -31,12 +31,21 @@ export function getSesionMetadata() {
   }
 }
 
+// Configuración de escritorio para evitar que los sitios sirvan la versión móvil
+const DESKTOP_CONTEXT = {
+  viewport: { width: 1920, height: 1080 },
+  userAgent:
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  locale: 'es-ES',
+  timezoneId: 'America/Mexico_City'
+};
+
 export async function crearNavegadorConSesion(headless = false) {
   ensureAuthDir();
 
   const browser = await chromium.launch({
     headless,
-    args: ['--start-maximized', '--disable-blink-features=AutomationControlled']
+    args: ['--disable-blink-features=AutomationControlled']
   });
 
   let context;
@@ -45,21 +54,21 @@ export async function crearNavegadorConSesion(headless = false) {
     try {
       const stats = fs.statSync(STORAGE_STATE_FILE);
       console.log(`Sesion encontrada: ${STORAGE_STATE_FILE} (${stats.size} bytes, modificado: ${stats.mtime})`);
-      
+
       context = await browser.newContext({
-        viewport: null,
+        ...DESKTOP_CONTEXT,
         storageState: STORAGE_STATE_FILE
       });
       console.log('Sesion guardada cargada exitosamente.');
     } catch (error) {
       console.log('Error al cargar sesion guardada:', error.message);
       console.log('Creando contexto limpio sin sesion.');
-      context = await browser.newContext({ viewport: null });
+      context = await browser.newContext({ ...DESKTOP_CONTEXT });
     }
   } else {
     console.log(`No se encontro archivo de sesion en: ${STORAGE_STATE_FILE}`);
     console.log('Creando contexto limpio. Usa la interfaz web para iniciar sesion.');
-    context = await browser.newContext({ viewport: null });
+    context = await browser.newContext({ ...DESKTOP_CONTEXT });
   }
 
   const page = await context.newPage();
@@ -71,7 +80,7 @@ export async function guardarSesion(context) {
 
   try {
     await context.storageState({ path: storageStatePath });
-    
+
     const stats = fs.statSync(storageStatePath);
     console.log(`Sesion guardada exitosamente: ${storageStatePath} (${stats.size} bytes)`);
 
