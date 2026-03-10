@@ -353,6 +353,7 @@ async function cargarConfiguracion() {
         if (seriesRes.status === 'fulfilled' && seriesRes.value.ok) {
             const series = await seriesRes.value.json();
             if (series.siguientePrompt && !series.error) {
+                window._siguientePromptSerie = series.siguientePrompt;
                 inputTema.value = series.siguientePrompt;
 
                 // Mostrar etiqueta debajo del textarea
@@ -506,6 +507,17 @@ btnTestQwen.addEventListener('click', async () => {
             btnEnviarVeed.style.display = 'inline-block';
 
             cargarGuiones();
+
+            // Si el prompt era el de la serie automática, avanzar el contador
+            if (window._siguientePromptSerie && tema === window._siguientePromptSerie) {
+                try {
+                    await fetch('/api/series/avanzar', { method: 'POST' });
+                    await cargarEstadoSeries();
+                    await cargarConfiguracion(); // Recargar el nuevo prompt
+                } catch (e) {
+                    console.error('Error al avanzar serie desde UI:', e);
+                }
+            }
         } else {
             mostrarNotificacion(`Error: ${result.error}`, 'error');
         }
@@ -541,6 +553,9 @@ btnIniciar.addEventListener('click', async () => {
     statusPanel.style.display = 'block';
     resultsPanel.style.display = 'none';
     logsContainer.innerHTML = '';
+
+    // Guardar el tema para checarlo cuando termine (en actualizarEstado)
+    estadoActual.temaEjecutado = tema;
 
     try {
         const response = await fetch('/api/iniciar', {
@@ -580,6 +595,16 @@ function actualizarEstado(data) {
         cargarHistorial();
         cargarGuiones();
         mostrarResultados();
+
+        // Si el prompt original fue el de series, avanzar el contador
+        if (window._siguientePromptSerie && estadoActual.temaEjecutado === window._siguientePromptSerie) {
+            estadoActual.temaEjecutado = null; // reset
+            fetch('/api/series/avanzar', { method: 'POST' })
+                .then(() => cargarEstadoSeries())
+                .then(() => cargarConfiguracion())
+                .catch(e => console.error('Error al avanzar serie:', e));
+        }
+
     } else if (data.tipo === 'error') {
         statusBadge.classList.add('error');
         statusText.textContent = 'Error';
