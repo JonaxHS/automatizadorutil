@@ -185,14 +185,61 @@ export async function generarVideo(guion) {
     // Esperamos a que termine para poder editar parametros de forma estable.
     console.log('Esperando que termine la carga inicial de Veed...');
     let cargaInicialLista = false;
+    let flujoDirectoRender = false;
     for (let i = 0; i < 24; i++) {
       try {
-        const loadingHints = await page.$$(
-          'text=/.*generar video.*instantes.*/i, text=/.*generating.*moments.*/i, text=/.*this may take a moment.*/i'
-        );
-        const panelAjustes = await page.$$('text=/.*ajustes.*/i, text=/.*settings.*/i');
+        const loadingSelectors = [
+          'text=/.*generar video.*instantes.*/i',
+          'text=/.*generating.*moments.*/i',
+          'text=/.*this may take a moment.*/i',
+          'text=/.*estamos generando su vídeo.*/i',
+          'text=/.*estamos generando su video.*/i'
+        ];
 
-        if (panelAjustes.length > 0 && loadingHints.length === 0) {
+        let loadingHints = 0;
+        for (const selector of loadingSelectors) {
+          try {
+            const els = await page.$$(selector);
+            loadingHints += els.length;
+          } catch (error) {
+            continue;
+          }
+        }
+
+        const panelAjustesSelectors = ['text=/.*ajustes.*/i', 'text=/.*settings.*/i'];
+        let panelAjustes = 0;
+        for (const selector of panelAjustesSelectors) {
+          try {
+            const els = await page.$$(selector);
+            panelAjustes += els.length;
+          } catch (error) {
+            continue;
+          }
+        }
+
+        const renderSelectors = [
+          'text=/.*renderización del vídeo.*/i',
+          'text=/.*renderizacion del video.*/i',
+          'text=/.*rendering video.*/i',
+          'text=/.*estamos generando su vídeo.*/i'
+        ];
+        let renderHints = 0;
+        for (const selector of renderSelectors) {
+          try {
+            const els = await page.$$(selector);
+            renderHints += els.length;
+          } catch (error) {
+            continue;
+          }
+        }
+
+        if (renderHints > 0) {
+          flujoDirectoRender = true;
+          console.log('Veed entró en flujo directo de render. Se omite espera de opciones.');
+          break;
+        }
+
+        if (panelAjustes > 0 && loadingHints === 0) {
           cargaInicialLista = true;
           break;
         }
@@ -216,6 +263,34 @@ export async function generarVideo(guion) {
     const maxTiempoGeneracion = 300000; // 5 minutos
 
     while (tiempoEsperado < maxTiempoGeneracion) {
+      // Si Veed ya pasó a renderizado, no esperar opciones.
+      try {
+        const renderEarlySelectors = [
+          'text=/.*renderización del vídeo.*/i',
+          'text=/.*renderizacion del video.*/i',
+          'text=/.*rendering video.*/i',
+          'text=/.*estamos generando su vídeo.*/i'
+        ];
+
+        let renderEarlyCount = 0;
+        for (const selector of renderEarlySelectors) {
+          try {
+            const els = await page.$$(selector);
+            renderEarlyCount += els.length;
+          } catch (error) {
+            continue;
+          }
+        }
+
+        if (renderEarlyCount > 0) {
+          flujoDirectoRender = true;
+          console.log('Renderización detectada durante espera de opciones. Continuando...');
+          break;
+        }
+      } catch (error) {
+        // ignorar y continuar
+      }
+
       // Buscar indicadores de que aparecieron las opciones
       const opcionSelectors = [
         'text=/.*solo voz.*/i',
@@ -292,7 +367,7 @@ export async function generarVideo(guion) {
       }
     }
 
-    if (!opcionesEncontradas) {
+    if (!opcionesEncontradas || flujoDirectoRender) {
       // Algunos flujos de Veed avanzan directo al render sin este panel.
       console.log('No aparecieron opciones avanzadas. Continuando flujo directo a renderizado...');
       await page.screenshot({ path: 'screenshots/veed-timeout-opciones-continuando.png', fullPage: true });
