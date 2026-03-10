@@ -31,8 +31,8 @@ export function getSesionMetadata() {
   }
 }
 
-// Configuración de escritorio para evitar que los sitios sirvan la versión móvil
-const DESKTOP_CONTEXT = {
+// Configuración de escritorio (Veed.io, etc.)
+export const DESKTOP_CONTEXT = {
   viewport: { width: 1920, height: 1080 },
   userAgent:
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -40,7 +40,22 @@ const DESKTOP_CONTEXT = {
   timezoneId: 'America/Mexico_City'
 };
 
-export async function crearNavegadorConSesion(headless = false) {
+// Configuración móvil (Qwen, etc.)
+export const MOBILE_CONTEXT = {
+  viewport: { width: 390, height: 844 },
+  userAgent:
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+  isMobile: true,
+  hasTouch: true,
+  locale: 'es-ES',
+  timezoneId: 'America/Mexico_City'
+};
+
+/**
+ * @param {boolean} headless
+ * @param {object} contextOptions - override de contexto del navegador (DESKTOP_CONTEXT o MOBILE_CONTEXT)
+ */
+export async function crearNavegadorConSesion(headless = false, contextOptions = DESKTOP_CONTEXT) {
   ensureAuthDir();
 
   const browser = await chromium.launch({
@@ -56,19 +71,19 @@ export async function crearNavegadorConSesion(headless = false) {
       console.log(`Sesion encontrada: ${STORAGE_STATE_FILE} (${stats.size} bytes, modificado: ${stats.mtime})`);
 
       context = await browser.newContext({
-        ...DESKTOP_CONTEXT,
+        ...contextOptions,
         storageState: STORAGE_STATE_FILE
       });
       console.log('Sesion guardada cargada exitosamente.');
     } catch (error) {
       console.log('Error al cargar sesion guardada:', error.message);
       console.log('Creando contexto limpio sin sesion.');
-      context = await browser.newContext({ ...DESKTOP_CONTEXT });
+      context = await browser.newContext({ ...contextOptions });
     }
   } else {
     console.log(`No se encontro archivo de sesion en: ${STORAGE_STATE_FILE}`);
     console.log('Creando contexto limpio. Usa la interfaz web para iniciar sesion.');
-    context = await browser.newContext({ ...DESKTOP_CONTEXT });
+    context = await browser.newContext({ ...contextOptions });
   }
 
   const page = await context.newPage();

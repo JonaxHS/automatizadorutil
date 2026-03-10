@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { crearNavegadorConSesion, guardarSesion } from './auth.js';
+import { crearNavegadorConSesion, guardarSesion, DESKTOP_CONTEXT } from './auth.js';
 
 /**
  * Toma un screenshot de forma segura. Si falla (timeout, page crash, etc.)
@@ -21,7 +21,7 @@ async function safeScreenshot(page, opts) {
 export async function generarVideo(guion) {
   console.log('Iniciando generacion de video en Veed.io AI Studio...');
 
-  const { browser, context, page } = await crearNavegadorConSesion(config.headless);
+  const { browser, context, page } = await crearNavegadorConSesion(config.headless, DESKTOP_CONTEXT);
 
   try {
     // Navegar directamente a AI Studio

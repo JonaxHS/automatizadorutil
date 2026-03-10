@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { crearNavegadorConSesion, guardarSesion, estaAutenticado } from './auth.js';
+import { crearNavegadorConSesion, guardarSesion, estaAutenticado, MOBILE_CONTEXT } from './auth.js';
 
 function quitarBloquesCodigo(texto) {
   if (!texto) return '';
@@ -52,14 +52,14 @@ export async function generarGuion(tema) {
   console.log('Iniciando generacion de guion con Qwen AI...');
   console.log(`Abriendo chat configurado: ${config.qwenChatUrl}`);
 
-  const { browser, context, page } = await crearNavegadorConSesion(config.headless);
+  const { browser, context, page } = await crearNavegadorConSesion(config.headless, MOBILE_CONTEXT);
 
   try {
     await page.goto(config.qwenChatUrl, {
       waitUntil: 'domcontentloaded',
       timeout: config.timeouts.navigation
     });
-    
+
     // Esperar a que la página cargue completamente
     await page.waitForTimeout(3000);
 
@@ -174,10 +174,10 @@ export async function generarGuion(tema) {
     console.log('Enviando mensaje con teclado (Enter / Ctrl+Enter)...');
     await chatInput.press('Enter');
     await page.waitForTimeout(500);
-    await chatInput.press('Control+Enter').catch(() => {});
+    await chatInput.press('Control+Enter').catch(() => { });
 
     await page.screenshot({ path: 'screenshots/qwen-3-message-sent.png', fullPage: true });
-    
+
     console.log('Esperando respuesta de Qwen AI (puede tardar 10-60 segundos)...');
     await page.waitForTimeout(12000); // Espera inicial de 12 segundos
 
@@ -285,11 +285,11 @@ export async function generarGuion(tema) {
 
     if (!respuestaQwen) {
       await page.screenshot({ path: 'screenshots/qwen-error-no-response.png', fullPage: true });
-      
+
       // Debug: intentar capturar cualquier texto visible
       const bodyText = await page.evaluate(() => document.body.innerText);
       console.log('Texto de página completo (primeros 500 chars):', bodyText.substring(0, 500));
-      
+
       throw new Error('No se pudo extraer respuesta de Qwen AI');
     }
 
