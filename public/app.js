@@ -89,18 +89,40 @@ const consolaLogs = document.getElementById('consolaLogs');
 const btnLimpiar = document.getElementById('btnLimpiarLogs');
 const chkAutoScroll = document.getElementById('logsAutoScroll');
 const MAX_LOG_LINES = 500;
+const LS_LOGS_KEY = 'automatizador_logs';
 
-function agregarLineaConsola(nivel, mensaje, timestamp) {
+// ── Persistencia de logs en localStorage ──────────────────────────────────
+function leerLogsGuardados() {
+    try { return JSON.parse(localStorage.getItem(LS_LOGS_KEY) || '[]'); }
+    catch (_) { return []; }
+}
+
+function guardarLog(entry) {
+    try {
+        const logs = leerLogsGuardados();
+        logs.push(entry);
+        if (logs.length > MAX_LOG_LINES) logs.splice(0, logs.length - MAX_LOG_LINES);
+        localStorage.setItem(LS_LOGS_KEY, JSON.stringify(logs));
+    } catch (_) { }
+}
+
+function renderLineaConsola(nivel, mensaje, timestamp) {
     const line = document.createElement('div');
     line.className = `consola-line consola-${nivel}`;
-
     const ts = new Date(timestamp).toLocaleTimeString('es-MX', { hour12: false });
     const prefix = nivel === 'error' ? '✖' : nivel === 'warn' ? '⚠' : '›';
-
     line.innerHTML = `<span class="consola-ts">${ts}</span><span class="consola-prefix">${prefix}</span><span class="consola-msg">${escapeHtml(mensaje)}</span>`;
+    return line;
+}
+
+function agregarLineaConsola(nivel, mensaje, timestamp, guardar = true) {
+    const line = renderLineaConsola(nivel, mensaje, timestamp);
     consolaLogs.appendChild(line);
 
-    // Límite de líneas para no llenar la memoria
+    // Guardar en localStorage si es un evento nuevo (no una restauración)
+    if (guardar) guardarLog({ nivel, mensaje, timestamp });
+
+    // Límite de líneas en DOM
     while (consolaLogs.children.length > MAX_LOG_LINES) {
         consolaLogs.removeChild(consolaLogs.firstChild);
     }
@@ -109,6 +131,16 @@ function agregarLineaConsola(nivel, mensaje, timestamp) {
         consolaLogs.scrollTop = consolaLogs.scrollHeight;
     }
 }
+
+// Restaurar logs al cargar la página
+(function restaurarLogs() {
+    const logs = leerLogsGuardados();
+    if (!logs.length) return;
+    logs.forEach(({ nivel, mensaje, timestamp }) => {
+        agregarLineaConsola(nivel, mensaje, timestamp, false); // false = no volver a guardar
+    });
+    consolaLogs.scrollTop = consolaLogs.scrollHeight;
+})();
 
 function escapeHtml(str) {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -120,8 +152,10 @@ socket.on('log', (data) => {
 
 btnLimpiar?.addEventListener('click', () => {
     consolaLogs.innerHTML = '';
+    localStorage.removeItem(LS_LOGS_KEY); // limpiar también en localStorage
 });
 // ──────────────────────────────────────────────────────────────────────────
+
 
 async function cargarEstadoAuth() {
     try {
