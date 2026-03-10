@@ -9,6 +9,7 @@ const btnActualizarGuiones = document.getElementById('btnActualizarGuiones');
 const btnCopiarGuion = document.getElementById('btnCopiarGuion');
 const btnCopiarGuionModal = document.getElementById('btnCopiarGuionModal');
 const btnEnviarVeed = document.getElementById('btnEnviarVeed');
+const btnEnviarVeedModal = document.getElementById('btnEnviarVeedModal');
 const btnAuthQwen = document.getElementById('btnAuthQwen');
 const btnAuthVeed = document.getElementById('btnAuthVeed');
 const btnAuthFinish = document.getElementById('btnAuthFinish');
@@ -567,11 +568,68 @@ async function verGuion(nombre) {
         modalTitulo.textContent = data.nombre;
         modalContenido.textContent = data.contenido;
         
+        // Guardar guion para poder enviarlo a Veed
+        estadoActual.guionActual = data.contenido;
+        
         modal.classList.add('show');
         
         btnCopiarGuionModal.onclick = () => {
             copiarTexto(data.contenido);
             mostrarNotificacion('Guion copiado al portapapeles', 'success');
+        };
+        
+        btnEnviarVeedModal.onclick = async () => {
+            // Cerrar modal
+            modal.classList.remove('show');
+            
+            // Mostrar guion en el panel de resultados
+            resultsPanel.style.display = 'block';
+            guionPreview.textContent = data.contenido;
+            btnEnviarVeed.style.display = 'inline-block';
+            
+            // Preguntar si quiere enviar a Veed
+            const confirmar = confirm('¿Enviar este guion a Veed.io para generar el video? El proceso puede tardar varios minutos.');
+            if (!confirmar) return;
+            
+            if (estadoActual.ejecutando) {
+                mostrarNotificacion('Ya hay una operación en ejecución', 'warning');
+                return;
+            }
+            
+            try {
+                btnEnviarVeed.disabled = true;
+                btnEnviarVeedModal.disabled = true;
+                btnTestQwen.disabled = true;
+                btnIniciar.disabled = true;
+                estadoActual.ejecutando = true;
+                statusPanel.style.display = 'block';
+                
+                mostrarNotificacion('Enviando guion a Veed.io...', 'info');
+                
+                const response = await fetch('/api/test-veed', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ guion: data.contenido })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    mostrarNotificacion('✅ Video generado en Veed.io exitosamente', 'success');
+                    videoResult.innerHTML = `<a href="${result.videoUrl}" target="_blank" class="video-link">🎬 Abrir Video en Veed.io</a>`;
+                } else {
+                    mostrarNotificacion(`Error: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                mostrarNotificacion('Error al enviar a Veed.io', 'error');
+                console.error(error);
+            } finally {
+                btnEnviarVeed.disabled = false;
+                btnEnviarVeedModal.disabled = false;
+                btnTestQwen.disabled = false;
+                btnIniciar.disabled = false;
+                estadoActual.ejecutando = false;
+            }
         };
     } catch (error) {
         mostrarNotificacion('Error al cargar guion', 'error');
