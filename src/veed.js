@@ -2,6 +2,18 @@ import { config } from '../config.js';
 import { crearNavegadorConSesion, guardarSesion } from './auth.js';
 
 /**
+ * Toma un screenshot de forma segura. Si falla (timeout, page crash, etc.)
+ * solo lo loguea y continúa — los screenshots son solo para debug.
+ */
+async function safeScreenshot(page, opts) {
+  try {
+    await page.screenshot({ timeout: 15000, ...opts });
+  } catch (err) {
+    console.warn(`[screenshot] No se pudo guardar ${opts.path || ''}: ${err.message}`);
+  }
+}
+
+/**
  * Genera un video en Veed.io AI Studio usando el guion proporcionado.
  * @param {string} guion
  * @returns {Promise<string>}
@@ -33,7 +45,7 @@ export async function generarVideo(guion) {
     // Esperar a que la página esté lista
     await page.waitForTimeout(3000);
 
-    await page.screenshot({ path: 'screenshots/veed-1-ai-studio.png', fullPage: true });
+    await safeScreenshot(page, { path: 'screenshots/veed-1-ai-studio.png', fullPage: true });
 
     // Verificar autenticación (sin volver a navegar)
     console.log('Verificando autenticación en Veed.io...');
@@ -96,7 +108,7 @@ export async function generarVideo(guion) {
       }
 
       if (loginDetectado) {
-        await page.screenshot({ path: 'screenshots/veed-no-auth.png', fullPage: true });
+        await safeScreenshot(page, { path: 'screenshots/veed-no-auth.png', fullPage: true });
         throw new Error('No autenticado en Veed.io. Inicia sesion desde la interfaz web. Revisa el screenshot: screenshots/veed-no-auth.png');
       }
 
@@ -132,7 +144,7 @@ export async function generarVideo(guion) {
     }
 
     if (!scriptInput) {
-      await page.screenshot({ path: 'screenshots/veed-no-input.png', fullPage: true });
+      await safeScreenshot(page, { path: 'screenshots/veed-no-input.png', fullPage: true });
       throw new Error('No se encontro el campo para pegar el guion en AI Studio.');
     }
 
@@ -142,7 +154,7 @@ export async function generarVideo(guion) {
     await page.waitForTimeout(500);
     await scriptInput.fill(guion);
     await page.waitForTimeout(1000);
-    await page.screenshot({ path: 'screenshots/veed-2-guion-pegado.png', fullPage: true });
+    await safeScreenshot(page, { path: 'screenshots/veed-2-guion-pegado.png', fullPage: true });
 
     // Buscar y hacer clic en el botón "Generate"
     console.log('Buscando boton Generate...');
@@ -179,7 +191,7 @@ export async function generarVideo(guion) {
     await generateButton.click();
     console.log('Boton Generate clickeado, esperando generacion...');
     await page.waitForTimeout(2000);
-    await page.screenshot({ path: 'screenshots/veed-3-generate-clicked.png', fullPage: true });
+    await safeScreenshot(page, { path: 'screenshots/veed-3-generate-clicked.png', fullPage: true });
 
     // Veed muestra un estado intermedio "Generar video..." con skeletons.
     // Esperamos a que termine para poder editar parametros de forma estable.
@@ -363,16 +375,16 @@ export async function generarVideo(guion) {
 
       if (tiempoEsperado % 30000 === 0) {
         console.log(`Esperando... ${tiempoEsperado / 1000}s de ${maxTiempoGeneracion / 1000}s`);
-        await page.screenshot({ path: `screenshots/veed-esperando-${tiempoEsperado / 1000}s.png`, fullPage: true });
+        await safeScreenshot(page, { path: `screenshots/veed-esperando-${tiempoEsperado / 1000}s.png`, fullPage: true });
       }
     }
 
     if (!opcionesEncontradas || flujoDirectoRender) {
       // Algunos flujos de Veed avanzan directo al render sin este panel.
       console.log('No aparecieron opciones avanzadas. Continuando flujo directo a renderizado...');
-      await page.screenshot({ path: 'screenshots/veed-timeout-opciones-continuando.png', fullPage: true });
+      await safeScreenshot(page, { path: 'screenshots/veed-timeout-opciones-continuando.png', fullPage: true });
     } else {
-      await page.screenshot({ path: 'screenshots/veed-4-opciones-aparecieron.png', fullPage: true });
+      await safeScreenshot(page, { path: 'screenshots/veed-4-opciones-aparecieron.png', fullPage: true });
 
       // Seleccionar "solo voz" (voice only)
       console.log('Seleccionando opcion "solo voz"...');
@@ -400,7 +412,7 @@ export async function generarVideo(guion) {
         }
       }
 
-      await page.screenshot({ path: 'screenshots/veed-5-solo-voz.png', fullPage: true });
+      await safeScreenshot(page, { path: 'screenshots/veed-5-solo-voz.png', fullPage: true });
 
       // Seleccionar idioma español
       console.log('Seleccionando idioma Spanish...');
@@ -429,7 +441,8 @@ export async function generarVideo(guion) {
         }
       }
 
-      await page.screenshot({ path: 'screenshots/veed-6-spanish.png', fullPage: true });
+      await page.waitForTimeout(2000); // esperar que el idioma cargue las voces
+      await safeScreenshot(page, { path: 'screenshots/veed-6-spanish.png', fullPage: true });
 
       // Seleccionar voz Alex o Carolina
       console.log('Seleccionando voz (Alex o Carolina)...');
@@ -463,7 +476,7 @@ export async function generarVideo(guion) {
         console.log('No se pudo seleccionar voz especifica, continuando...');
       }
 
-      await page.screenshot({ path: 'screenshots/veed-7-voz.png', fullPage: true });
+      await safeScreenshot(page, { path: 'screenshots/veed-7-voz.png', fullPage: true });
 
       // Seleccionar subtítulos "boba"
       console.log('Seleccionando subtitulos "boba"...');
@@ -489,7 +502,7 @@ export async function generarVideo(guion) {
         }
       }
 
-      await page.screenshot({ path: 'screenshots/veed-8-subtitulos.png', fullPage: true });
+      await safeScreenshot(page, { path: 'screenshots/veed-8-subtitulos.png', fullPage: true });
 
       // Esperar el estado final de ajustes antes de presionar "Hecho"
       // (como en la captura: panel estable y sin mensaje de carga).
@@ -541,9 +554,9 @@ export async function generarVideo(guion) {
 
       if (!estadoListo) {
         console.log('No se pudo confirmar estado listo completo, intentando continuar con el mejor estado disponible.');
-        await page.screenshot({ path: 'screenshots/veed-8b-estado-no-confirmado.png', fullPage: true });
+        await safeScreenshot(page, { path: 'screenshots/veed-8b-estado-no-confirmado.png', fullPage: true });
       } else {
-        await page.screenshot({ path: 'screenshots/veed-8b-estado-listo.png', fullPage: true });
+        await safeScreenshot(page, { path: 'screenshots/veed-8b-estado-listo.png', fullPage: true });
       }
 
       // Buscar y hacer clic en el botón "Hecho"
@@ -578,7 +591,7 @@ export async function generarVideo(guion) {
       } else {
         await hechoButton.click();
         console.log('Boton Hecho clickeado, comenzando renderizado...');
-        await page.screenshot({ path: 'screenshots/veed-9-hecho-clicked.png', fullPage: true });
+        await safeScreenshot(page, { path: 'screenshots/veed-9-hecho-clicked.png', fullPage: true });
       }
     }
 
@@ -603,7 +616,7 @@ export async function generarVideo(guion) {
         if (el && (await el.isVisible())) {
           pantallaGenerandoDetectada = true;
           console.log(`Pantalla de generacion detectada con selector: ${selector}`);
-          await page.screenshot({ path: 'screenshots/veed-9b-generando.png', fullPage: true });
+          await safeScreenshot(page, { path: 'screenshots/veed-9b-generando.png', fullPage: true });
           break;
         }
       } catch (error) {
@@ -763,16 +776,16 @@ export async function generarVideo(guion) {
 
       if (tiempoEsperado % 30000 === 0) {
         console.log(`Renderizando... ${tiempoEsperado / 1000}s de ${maxTiempoRender / 1000}s`);
-        await page.screenshot({ path: `screenshots/veed-render-${tiempoEsperado / 1000}s.png`, fullPage: true });
+        await safeScreenshot(page, { path: `screenshots/veed-render-${tiempoEsperado / 1000}s.png`, fullPage: true });
       }
     }
 
     if (!videoGenerado) {
-      await page.screenshot({ path: 'screenshots/veed-timeout-render.png', fullPage: true });
+      await safeScreenshot(page, { path: 'screenshots/veed-timeout-render.png', fullPage: true });
       console.log('Timeout esperando renderizado, pero continuando...');
     }
 
-    await page.screenshot({ path: 'screenshots/veed-10-final.png', fullPage: true });
+    await safeScreenshot(page, { path: 'screenshots/veed-10-final.png', fullPage: true });
 
     const finalUrl = page.url();
     console.log('URL del proyecto:', finalUrl);
@@ -780,7 +793,7 @@ export async function generarVideo(guion) {
     return finalUrl;
   } catch (error) {
     console.error('Error al generar video:', error.message);
-    await page.screenshot({ path: 'screenshots/veed-error.png' });
+    await safeScreenshot(page, { path: 'screenshots/veed-error.png' });
     throw error;
   } finally {
     try {
