@@ -43,16 +43,22 @@ export async function crearNavegadorConSesion(headless = false) {
 
   if (fs.existsSync(STORAGE_STATE_FILE)) {
     try {
+      const stats = fs.statSync(STORAGE_STATE_FILE);
+      console.log(`Sesion encontrada: ${STORAGE_STATE_FILE} (${stats.size} bytes, modificado: ${stats.mtime})`);
+      
       context = await browser.newContext({
         viewport: null,
         storageState: STORAGE_STATE_FILE
       });
-      console.log('Sesion guardada cargada.');
+      console.log('Sesion guardada cargada exitosamente.');
     } catch (error) {
-      console.log('No se pudo cargar sesion guardada, creando contexto limpio.');
+      console.log('Error al cargar sesion guardada:', error.message);
+      console.log('Creando contexto limpio sin sesion.');
       context = await browser.newContext({ viewport: null });
     }
   } else {
+    console.log(`No se encontro archivo de sesion en: ${STORAGE_STATE_FILE}`);
+    console.log('Creando contexto limpio. Usa la interfaz web para iniciar sesion.');
     context = await browser.newContext({ viewport: null });
   }
 
@@ -63,14 +69,23 @@ export async function crearNavegadorConSesion(headless = false) {
 export async function guardarSesion(context) {
   const storageStatePath = getStorageStatePath();
 
-  await context.storageState({ path: storageStatePath });
+  try {
+    await context.storageState({ path: storageStatePath });
+    
+    const stats = fs.statSync(storageStatePath);
+    console.log(`Sesion guardada exitosamente: ${storageStatePath} (${stats.size} bytes)`);
 
-  const metadata = {
-    fecha: new Date().toISOString(),
-    mensaje: 'Sesion del navegador guardada'
-  };
+    const metadata = {
+      fecha: new Date().toISOString(),
+      mensaje: 'Sesion del navegador guardada',
+      tamaño: stats.size
+    };
 
-  fs.writeFileSync(BROWSER_STATE_FILE, JSON.stringify(metadata, null, 2));
+    fs.writeFileSync(BROWSER_STATE_FILE, JSON.stringify(metadata, null, 2));
+  } catch (error) {
+    console.error('Error al guardar sesion:', error.message);
+    throw error;
+  }
 }
 
 export async function estaAutenticado(page, url, indicadoresAutenticacion) {

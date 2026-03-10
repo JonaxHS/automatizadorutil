@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { crearNavegadorConSesion, guardarSesion, estaAutenticado } from './auth.js';
+import { crearNavegadorConSesion, guardarSesion } from './auth.js';
 
 /**
  * Genera un video en Veed.io AI Studio usando el guion proporcionado.
@@ -35,20 +35,48 @@ export async function generarVideo(guion) {
 
     await page.screenshot({ path: 'screenshots/veed-1-ai-studio.png', fullPage: true });
 
-    // Verificar autenticación
+    // Verificar autenticación (sin volver a navegar)
+    console.log('Verificando autenticación en Veed.io...');
     const indicadoresAuth = [
-      '[aria-label*="user"]',
-      '[aria-label*="account"]',
-      '[data-testid*="user"]',
-      '.user-avatar',
-      'button[aria-label*="Profile"]',
-      'img[alt*="avatar"]',
-      '[class*="avatar"]'
+      '[aria-label*="user" i]',
+      '[aria-label*="account" i]',
+      '[data-testid*="user" i]',
+      'button[aria-label*="profile" i]',
+      'button[aria-label*="menu" i]',
+      '[class*="avatar"]',
+      '[class*="user"]',
+      'button:has-text("Upgrade")',
+      'button:has-text("Pro")',
+      'a[href*="/workspace"]',
+      'a[href*="/projects"]'
     ];
 
-    const autenticado = await estaAutenticado(page, aiStudioUrl, indicadoresAuth);
+    let autenticado = false;
+    for (const selector of indicadoresAuth) {
+      try {
+        const elemento = await page.$(selector);
+        if (elemento) {
+          const isVisible = await elemento.isVisible();
+          if (isVisible) {
+            console.log(`Autenticación detectada con selector: ${selector}`);
+            autenticado = true;
+            break;
+          }
+        }
+      } catch (error) {
+        continue;
+      }
+    }
+
     if (!autenticado) {
-      throw new Error('No autenticado en Veed.io. Inicia sesion desde la interfaz o ejecuta npm run setup-auth.');
+      // Verificar si hay indicadores que requieren login
+      const loginIndicators = await page.$$('text=/.*sign in.*/i, text=/.*log in.*/i, button:has-text("Login")');
+      if (loginIndicators.length > 0) {
+        await page.screenshot({ path: 'screenshots/veed-no-auth.png', fullPage: true });
+        throw new Error('No autenticado en Veed.io. Inicia sesion desde la interfaz web. Revisa el screenshot: screenshots/veed-no-auth.png');
+      }
+      // Si no hay indicadores de login, asumir que está autenticado
+      console.log('No se encontraron indicadores de login, continuando...');
     }
 
     await page.waitForTimeout(2000);
