@@ -515,6 +515,55 @@ app.get('/api/guiones/:nombre', (req, res) => {
   res.json({ nombre: req.params.nombre, contenido });
 });
 
+// Eliminar un guion
+app.delete('/api/guiones/:nombre', (req, res) => {
+  const rutaGuion = path.join(process.cwd(), 'guiones', req.params.nombre);
+  if (!fs.existsSync(rutaGuion)) {
+    return res.status(404).json({ error: 'Guion no encontrado' });
+  }
+  try {
+    fs.unlinkSync(rutaGuion);
+    res.json({ ok: true, mensaje: `Guion ${req.params.nombre} eliminado` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Listar capturas de pantalla
+app.get('/api/screenshots', (req, res) => {
+  const screenshotsDir = path.join(process.cwd(), 'screenshots');
+  if (!fs.existsSync(screenshotsDir)) return res.json([]);
+
+  const archivos = fs.readdirSync(screenshotsDir)
+    .filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f))
+    .map(f => {
+      const stats = fs.statSync(path.join(screenshotsDir, f));
+      return { nombre: f, fecha: stats.mtime, tamano: stats.size };
+    })
+    .sort((a, b) => b.fecha - a.fecha);
+
+  res.json(archivos);
+});
+
+// Servir una captura de pantalla por nombre
+app.get('/api/screenshots/:nombre', (req, res) => {
+  const rutaImg = path.join(process.cwd(), 'screenshots', path.basename(req.params.nombre));
+  if (!fs.existsSync(rutaImg)) return res.status(404).json({ error: 'Captura no encontrada' });
+  res.sendFile(rutaImg);
+});
+
+// Eliminar una captura de pantalla
+app.delete('/api/screenshots/:nombre', (req, res) => {
+  const rutaImg = path.join(process.cwd(), 'screenshots', path.basename(req.params.nombre));
+  if (!fs.existsSync(rutaImg)) return res.status(404).json({ error: 'Captura no encontrada' });
+  try {
+    fs.unlinkSync(rutaImg);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Obtener historial
 app.get('/api/historial', (req, res) => {
   res.json(estadoAutomatizacion.historial);

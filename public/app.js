@@ -582,20 +582,50 @@ async function cargarGuiones() {
         guiones.forEach(guion => {
             const div = document.createElement('div');
             div.className = 'script-item';
-            div.onclick = () => verGuion(guion.nombre);
 
             const fecha = new Date(guion.fecha).toLocaleString();
             const tamano = (guion.tamano / 1024).toFixed(2);
 
             div.innerHTML = `
-                <div class="script-item-name">📝 ${guion.nombre}</div>
-                <div class="script-item-info">${fecha} • ${tamano} KB</div>
+                <div class="script-item-row">
+                    <div class="script-item-info-block" style="cursor:pointer;flex:1">
+                        <div class="script-item-name">📝 ${guion.nombre}</div>
+                        <div class="script-item-info">${fecha} • ${tamano} KB</div>
+                    </div>
+                    <button class="btn btn-small btn-danger script-delete-btn" title="Eliminar guion">🗑️</button>
+                </div>
             `;
+
+            div.querySelector('.script-item-info-block').onclick = () => verGuion(guion.nombre);
+            div.querySelector('.script-delete-btn').onclick = (e) => {
+                e.stopPropagation();
+                eliminarGuion(guion.nombre, div);
+            };
 
             guionesLista.appendChild(div);
         });
     } catch (error) {
         console.error('Error al cargar guiones:', error);
+    }
+}
+
+// Eliminar un guion
+async function eliminarGuion(nombre, elemento) {
+    if (!confirm(`¿Eliminar el guion "${nombre}"?`)) return;
+    try {
+        const response = await fetch(`/api/guiones/${nombre}`, { method: 'DELETE' });
+        const result = await response.json();
+        if (response.ok) {
+            elemento.remove();
+            mostrarNotificacion('Guion eliminado', 'success');
+            if (guionesLista.children.length === 0) {
+                guionesLista.innerHTML = '<p class="placeholder">No hay guiones guardados</p>';
+            }
+        } else {
+            mostrarNotificacion(result.error || 'Error al eliminar', 'error');
+        }
+    } catch (error) {
+        mostrarNotificacion('Error al eliminar guion', 'error');
     }
 }
 
@@ -726,6 +756,99 @@ function mostrarNotificacion(mensaje, tipo) {
         setTimeout(() => notif.remove(), 300);
     }, 3000);
 }
+
+// ─── Galería de Capturas de Pantalla ───────────────────────────────────────
+const screenshotsGallery = document.getElementById('screenshotsGallery');
+const modalScreenshot = document.getElementById('modalScreenshot');
+const screenshotImg = document.getElementById('screenshotImg');
+const screenshotName = document.getElementById('screenshotName');
+const screenshotModalClose = document.getElementById('screenshotModalClose');
+const screenshotPrev = document.getElementById('screenshotPrev');
+const screenshotNext = document.getElementById('screenshotNext');
+const btnActualizarSS = document.getElementById('btnActualizarScreenshots');
+const btnLimpiarSS = document.getElementById('btnLimpiarScreenshots');
+
+let screenshotsList = [];
+let screenshotIndex = 0;
+
+async function cargarScreenshots() {
+    try {
+        const response = await fetch('/api/screenshots');
+        screenshotsList = await response.json();
+
+        if (screenshotsList.length === 0) {
+            screenshotsGallery.innerHTML = '<p class="placeholder">No hay capturas de pantalla aún</p>';
+            return;
+        }
+
+        screenshotsGallery.innerHTML = '';
+        screenshotsList.forEach((ss, idx) => {
+            const thumb = document.createElement('div');
+            thumb.className = 'screenshot-thumb';
+            thumb.title = ss.nombre;
+            thumb.innerHTML = `<img src="/api/screenshots/${encodeURIComponent(ss.nombre)}" alt="${ss.nombre}" loading="lazy">
+                               <div class="screenshot-thumb-name">${ss.nombre.replace(/^screenshots\//, '')}</div>`;
+            thumb.onclick = () => abrirScreenshot(idx);
+            screenshotsGallery.appendChild(thumb);
+        });
+    } catch (error) {
+        console.error('Error al cargar screenshots:', error);
+    }
+}
+
+function abrirScreenshot(idx) {
+    screenshotIndex = idx;
+    mostrarScreenshot();
+    modalScreenshot.classList.add('show');
+}
+
+function mostrarScreenshot() {
+    const ss = screenshotsList[screenshotIndex];
+    if (!ss) return;
+    screenshotImg.src = `/api/screenshots/${encodeURIComponent(ss.nombre)}`;
+    screenshotName.textContent = `${ss.nombre}  (${screenshotIndex + 1}/${screenshotsList.length})`;
+}
+
+screenshotPrev?.addEventListener('click', () => {
+    screenshotIndex = (screenshotIndex - 1 + screenshotsList.length) % screenshotsList.length;
+    mostrarScreenshot();
+});
+
+screenshotNext?.addEventListener('click', () => {
+    screenshotIndex = (screenshotIndex + 1) % screenshotsList.length;
+    mostrarScreenshot();
+});
+
+screenshotModalClose?.addEventListener('click', () => modalScreenshot.classList.remove('show'));
+modalScreenshot?.addEventListener('click', (e) => { if (e.target === modalScreenshot) modalScreenshot.classList.remove('show'); });
+
+// Teclado: ← → para navegar, Esc para cerrar
+document.addEventListener('keydown', (e) => {
+    if (!modalScreenshot?.classList.contains('show')) return;
+    if (e.key === 'ArrowLeft') { screenshotIndex = (screenshotIndex - 1 + screenshotsList.length) % screenshotsList.length; mostrarScreenshot(); }
+    if (e.key === 'ArrowRight') { screenshotIndex = (screenshotIndex + 1) % screenshotsList.length; mostrarScreenshot(); }
+    if (e.key === 'Escape') { modalScreenshot.classList.remove('show'); }
+});
+
+btnActualizarSS?.addEventListener('click', cargarScreenshots);
+
+btnLimpiarSS?.addEventListener('click', async () => {
+    if (screenshotsList.length === 0) return;
+    if (!confirm(`¿Eliminar las ${screenshotsList.length} capturas de pantalla?`)) return;
+    try {
+        const results = await Promise.all(
+            screenshotsList.map(ss => fetch(`/api/screenshots/${encodeURIComponent(ss.nombre)}`, { method: 'DELETE' }))
+        );
+        await cargarScreenshots();
+        mostrarNotificacion('Capturas eliminadas', 'success');
+    } catch (error) {
+        mostrarNotificacion('Error al eliminar capturas', 'error');
+    }
+});
+
+// Cargar screenshots al inicio
+window.addEventListener('DOMContentLoaded', () => { cargarScreenshots(); });
+// ──────────────────────────────────────────────────────────────────────────
 
 // Agregar estilos para animaciones
 const style = document.createElement('style');

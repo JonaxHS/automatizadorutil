@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Automatizador de Videos - Qwen + Veed.io</title>
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -17,10 +19,11 @@
             <!-- Panel de Control -->
             <section class="card control-panel">
                 <h2>📋 Configuración</h2>
-                
+
                 <div class="form-group">
                     <label for="tema">Mensaje para Qwen:</label>
-                    <textarea id="tema" rows="3" placeholder="Escribe el tema o pregunta que enviarás a tu chat de Qwen..."></textarea>
+                    <textarea id="tema" rows="3"
+                        placeholder="Escribe el tema o pregunta que enviarás a tu chat de Qwen..."></textarea>
                 </div>
 
                 <div class="form-group">
@@ -48,7 +51,8 @@
             <section class="card auth-panel">
                 <h2>🔐 Login Google (Qwen + Veed)</h2>
                 <p class="auth-help">
-                    Inicia sesión desde esta interfaz. Si estás en VPS, abre el escritorio remoto del navegador con noVNC.
+                    Inicia sesión desde esta interfaz. Si estás en VPS, abre el escritorio remoto del navegador con
+                    noVNC.
                 </p>
 
                 <div id="authStatus" class="auth-status">Cargando estado de autenticación...</div>
@@ -62,26 +66,27 @@
                 </div>
 
                 <div id="authSessionInfo" class="auth-session-info"></div>
-                <a id="authVncLink" class="auth-vnc-link" target="_blank" rel="noopener" style="display:none;">Abrir escritorio remoto noVNC</a>
+                <a id="authVncLink" class="auth-vnc-link" target="_blank" rel="noopener" style="display:none;">Abrir
+                    escritorio remoto noVNC</a>
             </section>
 
             <!-- Estado y Progreso -->
             <section class="card status-panel" id="statusPanel" style="display: none;">
                 <h2>📊 Estado de la Automatización</h2>
-                
+
                 <div class="status-info">
                     <div class="status-badge" id="statusBadge">
                         <span class="status-dot"></span>
                         <span id="statusText">Inactivo</span>
                     </div>
-                    
+
                     <div class="progress-container">
                         <div class="progress-bar">
                             <div class="progress-fill" id="progressFill" style="width: 0%"></div>
                         </div>
                         <span class="progress-text" id="progressText">0%</span>
                     </div>
-                    
+
                     <div class="status-message" id="statusMessage">
                         Esperando inicio...
                     </div>
@@ -93,7 +98,7 @@
             <!-- Resultados -->
             <section class="card results-panel" id="resultsPanel" style="display: none;">
                 <h2>✅ Último Resultado</h2>
-                
+
                 <div class="result-content">
                     <div class="result-item">
                         <h3>📝 Guion Generado</h3>
@@ -117,7 +122,7 @@
                             <p class="placeholder">La descripción aparecerá aquí...</p>
                         </div>
                     </div>
-                    
+
                     <div class="result-item">
                         <h3>🎬 Video</h3>
                         <div id="videoResult">
@@ -158,6 +163,20 @@
                     <p class="placeholder">Cargando guiones...</p>
                 </div>
             </section>
+
+            <!-- Capturas de Pantalla -->
+            <section class="card screenshots-panel">
+                <div class="logs-header">
+                    <h2>📸 Capturas de Pantalla</h2>
+                    <div class="logs-controls">
+                        <button id="btnActualizarScreenshots" class="btn btn-small">🔄 Actualizar</button>
+                        <button id="btnLimpiarScreenshots" class="btn btn-small btn-danger">🗑️ Eliminar todas</button>
+                    </div>
+                </div>
+                <div id="screenshotsGallery" class="screenshots-gallery">
+                    <p class="placeholder">Cargando capturas...</p>
+                </div>
+            </section>
         </main>
 
         <footer>
@@ -181,7 +200,23 @@
         </div>
     </div>
 
+    <!-- Modal para ver capturas de pantalla -->
+    <div id="modalScreenshot" class="modal">
+        <div class="modal-content modal-screenshot-content">
+            <span class="modal-close" id="screenshotModalClose">&times;</span>
+            <div class="screenshot-viewer">
+                <button class="screenshot-nav" id="screenshotPrev">&#8249;</button>
+                <div class="screenshot-main">
+                    <img id="screenshotImg" src="" alt="Captura">
+                    <div class="screenshot-name" id="screenshotName"></div>
+                </div>
+                <button class="screenshot-nav" id="screenshotNext">&#8250;</button>
+            </div>
+        </div>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script src="app.js"></script>
 </body>
+
 </html>
