@@ -572,8 +572,47 @@ export async function generarVideo(guion) {
     let videoGenerado = false;
     tiempoEsperado = 0;
     const maxTiempoRender = config.timeouts.generation;
+    let ultimoPorcentajeRender = -1;
 
     while (tiempoEsperado < maxTiempoRender) {
+      let textoPantalla = '';
+      let enPantallaRender = false;
+      let porcentajeRender = null;
+
+      try {
+        textoPantalla = ((await page.locator('body').innerText()) || '').toLowerCase();
+        enPantallaRender =
+          textoPantalla.includes('renderización del vídeo') ||
+          textoPantalla.includes('renderizacion del video') ||
+          textoPantalla.includes('rendering video') ||
+          textoPantalla.includes('video rendering');
+
+        const matchPorcentaje = textoPantalla.match(/\b(\d{1,3})\s*%\b/);
+        if (matchPorcentaje) {
+          porcentajeRender = Number.parseInt(matchPorcentaje[1], 10);
+        }
+      } catch (error) {
+        // continuar con selectores alternativos
+      }
+
+      // Si estamos en la pantalla de render, esperar explícitamente al 100%
+      if (enPantallaRender) {
+        if (Number.isInteger(porcentajeRender)) {
+          if (porcentajeRender !== ultimoPorcentajeRender) {
+            ultimoPorcentajeRender = porcentajeRender;
+            console.log(`Renderización del video: ${porcentajeRender}%`);
+          }
+
+          if (porcentajeRender >= 100) {
+            videoGenerado = true;
+            console.log('Renderización llegó a 100%. Video listo.');
+            break;
+          }
+        } else {
+          console.log('Pantalla de render detectada, esperando porcentaje...');
+        }
+      }
+
       const successSelectors = [
         'text=/.*complete.*/i',
         'text=/.*success.*/i',
@@ -584,19 +623,24 @@ export async function generarVideo(guion) {
         '[class*="preview"]',
         '[class*="player"]',
         'button:has-text("Vista previa")',
-        'button:has-text("Preview")'
+        'button:has-text("Preview")',
+        'button:has-text("Copiar enlace")',
+        'button:has-text("Copy link")'
       ];
 
-      for (const selector of successSelectors) {
-        try {
-          const elements = await page.$$(selector);
-          if (elements.length > 0) {
-            videoGenerado = true;
-            console.log(`Video renderizado detectado con selector: ${selector}`);
-            break;
+      // Si no estamos en pantalla de render, usar detectores generales.
+      if (!enPantallaRender) {
+        for (const selector of successSelectors) {
+          try {
+            const elements = await page.$$(selector);
+            if (elements.length > 0) {
+              videoGenerado = true;
+              console.log(`Video renderizado detectado con selector: ${selector}`);
+              break;
+            }
+          } catch (error) {
+            continue;
           }
-        } catch (error) {
-          continue;
         }
       }
       if (videoGenerado) {
