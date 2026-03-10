@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { crearNavegadorConSesion, guardarSesion, estaAutenticado, MOBILE_CONTEXT } from './auth.js';
+import { crearNavegadorConSesion, guardarSesion, estaAutenticado, DESKTOP_CONTEXT } from './auth.js';
 
 function quitarBloquesCodigo(texto) {
   if (!texto) return '';
@@ -52,7 +52,7 @@ export async function generarGuion(tema) {
   console.log('Iniciando generacion de guion con Qwen AI...');
   console.log(`Abriendo chat configurado: ${config.qwenChatUrl}`);
 
-  const { browser, context, page } = await crearNavegadorConSesion(config.headless, MOBILE_CONTEXT);
+  const { browser, context, page } = await crearNavegadorConSesion(config.headless, DESKTOP_CONTEXT);
 
   try {
     await page.goto(config.qwenChatUrl, {
