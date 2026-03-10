@@ -312,8 +312,10 @@ btnTestQwen.addEventListener('click', async () => {
     }
     
     try {
+        estadoActual.ejecutando = true;
         btnTestQwen.disabled = true;
         btnIniciar.disabled = true;
+        btnEnviarVeed.disabled = true;
         statusPanel.style.display = 'block';
         
         const response = await fetch('/api/test-qwen', {
@@ -342,8 +344,10 @@ btnTestQwen.addEventListener('click', async () => {
         mostrarNotificacion('Error al probar Qwen', 'error');
         console.error(error);
     } finally {
+        estadoActual.ejecutando = false;
         btnTestQwen.disabled = false;
         btnIniciar.disabled = false;
+        btnEnviarVeed.disabled = false;
     }
 });
 
