@@ -599,6 +599,77 @@ app.get('/api/historial', (req, res) => {
   res.json(estadoAutomatizacion.historial);
 });
 
+// ── API Programación de Horarios ──────────────────────────────────────────────
+import { initScheduler, getState as getScheduleState, guardarConfiguracion as saveSchedule } from './scheduler.js';
+
+app.get('/api/schedule', (req, res) => {
+  res.json(getScheduleState());
+});
+
+app.post('/api/schedule', (req, res) => {
+  const { active, times } = req.body;
+  saveSchedule(active, times);
+  res.json({ ok: true });
+});
+
+// Inicializar el programador (Cron-like)
+initScheduler(async () => {
+  // Lógica de disparo programado
+  if (estadoAutomatizacion.ejecutando) {
+    console.log('[Scheduler] ⏰ Se intentó iniciar ejecución programada pero ya hay otra en curso.');
+    return;
+  }
+
+  try {
+    console.log('═'.repeat(60));
+    console.log('[Scheduler] 🚀 Iniciando flujo completo de serie programado!');
+    console.log('═'.repeat(60));
+
+    const { getPromptSiguiente, marcarReelCompletado } = await import('./series.js');
+    const sig = await getPromptSiguiente();
+    const prompt = sig.prompt;
+
+    console.log(`[Scheduler] Prompt a usar: "${prompt}"`);
+
+    const sessionDir = path.join(process.cwd(), 'sesiones', Date.now().toString());
+    if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
+
+    estadoAutomatizacion = {
+      ejecutando: true,
+      paso: 'Iniciando automatización programada',
+      progreso: 0,
+      historial: []
+    };
+    emitirEstado();
+
+    // 1. Qwen
+    const qwenUrl = config.qwenChatUrl;
+    const { generarGuion } = await import('./qwen.js');
+    const resultadoQwen = await generarGuion(prompt, sessionDir, qwenUrl, emitirEstado);
+
+    // 2. Veed
+    const { generarVideo } = await import('./veed.js');
+    const resultadoVeed = await generarVideo(resultadoQwen.guion, sessionDir, emitirEstado);
+
+    // 3. Terminar
+    estadoAutomatizacion.ejecutando = false;
+    estadoAutomatizacion.paso = 'Completado';
+    estadoAutomatizacion.progreso = 100;
+    emitirEstado('success');
+
+    // 4. Avanzar Serie
+    await marcarReelCompletado();
+    console.log('[Scheduler] ✅ Reel programado completado y serie avanzada automáticamente.');
+
+  } catch (err) {
+    console.error('[Scheduler] ❌ Error en flujo programado:', err);
+    estadoAutomatizacion.ejecutando = false;
+    estadoAutomatizacion.paso = `Error: ${err.message}`;
+    emitirEstado('error');
+  }
+});
+
+
 // ── Series API ──────────────────────────────────────────────────────────────
 
 app.get('/api/series', async (req, res) => {

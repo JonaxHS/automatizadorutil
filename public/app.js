@@ -413,6 +413,46 @@ btnGuardarConfig.addEventListener('click', async () => {
     }
 });
 
+// ─── Automatización Programada (Horarios) ──────────────────────────────────
+async function cargarHorarios() {
+    try {
+        const r = await fetch('/api/schedule');
+        const d = await r.json();
+
+        document.getElementById('chkScheduleActive').checked = !!d.active;
+        if (Array.isArray(d.times) && d.times.length === 5) {
+            for (let i = 0; i < 5; i++) {
+                document.getElementById(`schTime${i}`).value = d.times[i];
+            }
+        }
+    } catch (e) {
+        console.error('Error cargando horarios', e);
+    }
+}
+
+document.getElementById('btnSaveSchedule')?.addEventListener('click', async () => {
+    const active = document.getElementById('chkScheduleActive').checked;
+    const times = [];
+    for (let i = 0; i < 5; i++) {
+        times.push(document.getElementById(`schTime${i}`).value);
+    }
+
+    try {
+        const r = await fetch('/api/schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ active, times })
+        });
+        if (r.ok) mostrarNotificacion('Horarios guardados correctamente', 'success');
+        else mostrarNotificacion('Error al guardar horarios', 'error');
+    } catch (e) {
+        mostrarNotificacion('Error de red al guardar horarios', 'error');
+    }
+});
+
+cargarHorarios(); // Cargar al arrancar
+
+
 // ─── Estado de Series ──────────────────────────────────────────────────────
 const seriesStatusEl = document.getElementById('seriesStatus');
 const btnRefreshSeries = document.getElementById('btnRefreshSeries');

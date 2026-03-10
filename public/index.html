@@ -112,6 +112,48 @@
                 </div>
             </section>
 
+            <!-- Pre-programación de Horarios -->
+            <section class="card schedule-panel">
+                <div class="logs-header" style="margin-bottom: 12px;">
+                    <h2>⏰ Automatización Programada</h2>
+                    <label class="switch-container" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <span>Activar</span>
+                        <div class="switch">
+                            <input type="checkbox" id="chkScheduleActive">
+                            <span class="slider round"></span>
+                        </div>
+                    </label>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 15px;">
+                    Elige los 5 horarios diarios en los que el sistema arrancará automáticamente para subir un Reel. (El
+                    sistema debe estar ejecutándose)
+                </p>
+                <div class="schedule-times"
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 15px;">
+                    <div>
+                        <label>Reel 1</label>
+                        <input type="time" id="schTime0" class="form-control" value="09:00">
+                    </div>
+                    <div>
+                        <label>Reel 2</label>
+                        <input type="time" id="schTime1" class="form-control" value="12:00">
+                    </div>
+                    <div>
+                        <label>Reel 3</label>
+                        <input type="time" id="schTime2" class="form-control" value="15:00">
+                    </div>
+                    <div>
+                        <label>Reel 4</label>
+                        <input type="time" id="schTime3" class="form-control" value="18:00">
+                    </div>
+                    <div>
+                        <label>Reel 5</label>
+                        <input type="time" id="schTime4" class="form-control" value="21:00">
+                    </div>
+                </div>
+                <button id="btnSaveSchedule" class="btn btn-primary" style="width: 100%;">💾 Guardar Horarios</button>
+            </section>
+
             <!-- Estado y Progreso -->
             <section class="card status-panel" id="statusPanel" style="display: none;">
                 <h2>📊 Estado de la Automatización</h2>
