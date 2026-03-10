@@ -295,20 +295,45 @@ btnEnviarVeed?.addEventListener('click', async () => {
 // Cargar configuración inicial
 async function cargarConfiguracion() {
     try {
-        const response = await fetch('/api/config');
-        const config = await response.json();
+        const [configRes, seriesRes] = await Promise.allSettled([
+            fetch('/api/config'),
+            fetch('/api/series')
+        ]);
 
-        inputTema.value = config.tema || '';
-        inputQwenChatUrl.value = config.qwenChatUrl || '';
+        if (configRes.status === 'fulfilled' && configRes.value.ok) {
+            const config = await configRes.value.json();
+            inputQwenChatUrl.value = config.qwenChatUrl || '';
 
-        const inputGoogleSheet = document.getElementById('googleSheetUrl');
-        if (inputGoogleSheet) inputGoogleSheet.value = config.googleSheetUrl || '';
+            const inputGoogleSheet = document.getElementById('googleSheetUrl');
+            if (inputGoogleSheet) inputGoogleSheet.value = config.googleSheetUrl || '';
 
-        const inputTelegramToken = document.getElementById('telegramToken');
-        if (inputTelegramToken) {
-            inputTelegramToken.placeholder = config.telegramActivo
-                ? `Token activo (${config.telegramToken}) — escribe para cambiar`
-                : '123456789:ABCdef...obtenido con @BotFather';
+            const inputTelegramToken = document.getElementById('telegramToken');
+            if (inputTelegramToken) {
+                inputTelegramToken.placeholder = config.telegramActivo
+                    ? `Token activo (${config.telegramToken}) — escribe para cambiar`
+                    : '123456789:ABCdef...obtenido con @BotFather';
+            }
+        }
+
+        // Pre-rellenar el campo de mensaje con el siguiente prompt de series
+        if (seriesRes.status === 'fulfilled' && seriesRes.value.ok) {
+            const series = await seriesRes.value.json();
+            if (series.siguientePrompt && !series.error) {
+                inputTema.value = series.siguientePrompt;
+
+                // Mostrar etiqueta debajo del textarea
+                const temaLabel = document.querySelector('label[for="tema"]');
+                if (temaLabel) {
+                    const info = document.getElementById('temaSeriesInfo') || (() => {
+                        const el = document.createElement('small');
+                        el.id = 'temaSeriesInfo';
+                        el.style.cssText = 'color:var(--primary);display:block;margin-top:4px;';
+                        temaLabel.parentElement.querySelector('textarea').after(el);
+                        return el;
+                    })();
+                    info.textContent = `📺 ${series.serieActual}  —  Reel ${series.reelActual}/${series.totalReelsSerie}  (precargado automáticamente)`;
+                }
+            }
         }
     } catch (error) {
         console.error('Error al cargar configuración:', error);
