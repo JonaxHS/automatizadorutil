@@ -8,6 +8,7 @@ const btnGuardarConfig = document.getElementById('btnGuardarConfig');
 const btnActualizarGuiones = document.getElementById('btnActualizarGuiones');
 const btnCopiarGuion = document.getElementById('btnCopiarGuion');
 const btnCopiarGuionModal = document.getElementById('btnCopiarGuionModal');
+const btnEnviarVeed = document.getElementById('btnEnviarVeed');
 const btnAuthQwen = document.getElementById('btnAuthQwen');
 const btnAuthVeed = document.getElementById('btnAuthVeed');
 const btnAuthFinish = document.getElementById('btnAuthFinish');
@@ -42,7 +43,8 @@ const modalContenido = document.getElementById('modalGuionContenido');
 
 // Estado actual
 let estadoActual = {
-    ejecutando: false
+    ejecutando: false,
+    guionActual: null
 };
 
 let authState = {
@@ -199,6 +201,55 @@ btnAuthFinish?.addEventListener('click', finalizarAuth);
 btnAuthCancel?.addEventListener('click', cancelarAuth);
 btnAuthRefresh?.addEventListener('click', cargarEstadoAuth);
 
+// Enviar guion a Veed.io
+btnEnviarVeed?.addEventListener('click', async () => {
+    if (!estadoActual.guionActual) {
+        mostrarNotificacion('No hay guion disponible. Genera uno primero con Qwen.', 'warning');
+        return;
+    }
+
+    if (estadoActual.ejecutando) {
+        mostrarNotificacion('Ya hay una operación en ejecución', 'warning');
+        return;
+    }
+
+    const confirmar = confirm('¿Enviar este guion a Veed.io para generar el video? El proceso puede tardar varios minutos.');
+    if (!confirmar) return;
+
+    try {
+        btnEnviarVeed.disabled = true;
+        btnTestQwen.disabled = true;
+        btnIniciar.disabled = true;
+        estadoActual.ejecutando = true;
+        statusPanel.style.display = 'block';
+        
+        mostrarNotificacion('Enviando guion a Veed.io...', 'info');
+        
+        const response = await fetch('/api/test-veed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ guion: estadoActual.guionActual })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            mostrarNotificacion('✅ Video generado en Veed.io exitosamente', 'success');
+            videoResult.innerHTML = `<a href="${result.videoUrl}" target="_blank" class="video-link">🎬 Abrir Video en Veed.io</a>`;
+        } else {
+            mostrarNotificacion(`Error: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        mostrarNotificacion('Error al enviar a Veed.io', 'error');
+        console.error(error);
+    } finally {
+        btnEnviarVeed.disabled = false;
+        btnTestQwen.disabled = false;
+        btnIniciar.disabled = false;
+        estadoActual.ejecutando = false;
+    }
+});
+
 // Cargar configuración inicial
 async function cargarConfiguracion() {
     try {
@@ -278,6 +329,11 @@ btnTestQwen.addEventListener('click', async () => {
             resultsPanel.style.display = 'block';
             guionPreview.textContent = result.guion || 'Sin guion detectado';
             descripcionPreview.textContent = result.descripcion || 'Sin descripción detectada';
+            
+            // Guardar guion para enviarlo a Veed después
+            estadoActual.guionActual = result.guion;
+            btnEnviarVeed.style.display = 'inline-block';
+            
             cargarGuiones();
         } else {
             mostrarNotificacion(`Error: ${result.error}`, 'error');

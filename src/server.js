@@ -296,6 +296,50 @@ app.post('/api/test-qwen', async (req, res) => {
   }
 });
 
+// Probar solo generación de video con Veed.io
+app.post('/api/test-veed', async (req, res) => {
+  if (estadoAutomatizacion.ejecutando) {
+    return res.status(400).json({ error: 'Ya hay una operación en ejecución' });
+  }
+
+  const { guion } = req.body;
+  if (!guion) {
+    return res.status(400).json({ error: 'El guion es requerido' });
+  }
+
+  estadoAutomatizacion.ejecutando = true;
+  estadoAutomatizacion.ultimoError = null;
+
+  try {
+    emitirEstado('Enviando guion a Veed.io AI Studio...', 20, 'info');
+    
+    const urlVideo = await generarVideo(guion);
+
+    emitirEstado('Video generado exitosamente en Veed.io', 100, 'success');
+    
+    estadoAutomatizacion.ultimoVideo = {
+      url: urlVideo,
+      fecha: new Date().toISOString()
+    };
+
+    res.json({
+      exito: true,
+      videoUrl: urlVideo,
+      mensaje: 'Video generado exitosamente en Veed.io'
+    });
+  } catch (error) {
+    console.error('Error al generar video en Veed.io:', error);
+    estadoAutomatizacion.ultimoError = {
+      mensaje: error.message,
+      fecha: new Date().toISOString()
+    };
+    emitirEstado(`Error: ${error.message}`, 0, 'error');
+    res.status(500).json({ error: error.message });
+  } finally {
+    estadoAutomatizacion.ejecutando = false;
+  }
+});
+
 // Iniciar automatización
 app.post('/api/iniciar', async (req, res) => {
   if (estadoAutomatizacion.ejecutando) {
