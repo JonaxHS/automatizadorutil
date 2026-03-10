@@ -14,6 +14,36 @@ async function safeScreenshot(page, opts) {
 }
 
 /**
+ * Lanza un error especial si Veed muestra el modal de límite diario.
+ * Texto de referencia: "You've Reached Your Daily Limit"
+ */
+class LimiteVeedError extends Error {
+  constructor() {
+    super('LIMITE_DIARIO_VEED: Has alcanzado el limite de videos por dia en Veed.io. Vuelve mañana o mejora tu plan.');
+    this.name = 'LimiteVeedError';
+  }
+}
+
+async function checkLimiteVeed(page) {
+  try {
+    const texto = ((await page.locator('body').innerText({ timeout: 3000 })) || '').toLowerCase();
+    if (
+      texto.includes("you've reached your daily limit") ||
+      texto.includes('reached your daily limit') ||
+      texto.includes('daily limit') ||
+      texto.includes('has alcanzado tu límite diario') ||
+      texto.includes('limite diario')
+    ) {
+      console.error('[VEED] Limite diario detectado. Deteniendo script.');
+      throw new LimiteVeedError();
+    }
+  } catch (err) {
+    if (err instanceof LimiteVeedError) throw err;
+    // Ignorar errores al leer el body (page crashed, etc.)
+  }
+}
+
+/**
  * Genera un video en Veed.io AI Studio usando el guion proporcionado.
  * @param {string} guion
  * @returns {Promise<string>}
@@ -191,6 +221,7 @@ export async function generarVideo(guion) {
     await generateButton.click();
     console.log('Boton Generate clickeado, esperando generacion...');
     await page.waitForTimeout(2000);
+    await checkLimiteVeed(page); // ← detectar paywall justo después de Generate
     await safeScreenshot(page, { path: 'screenshots/veed-3-generate-clicked.png', fullPage: true });
 
     // Veed muestra un estado intermedio "Generar video..." con skeletons.
@@ -256,10 +287,12 @@ export async function generarVideo(guion) {
           break;
         }
       } catch (error) {
+        if (error instanceof LimiteVeedError) throw error;
         // continuar reintentando
       }
 
       await page.waitForTimeout(5000);
+      await checkLimiteVeed(page);
     }
     if (cargaInicialLista) {
       console.log('Carga inicial completada, procediendo a ajustar parametros.');
@@ -773,6 +806,7 @@ export async function generarVideo(guion) {
 
       await page.waitForTimeout(5000);
       tiempoEsperado += 5000;
+      await checkLimiteVeed(page); // ← verificar durante el render
 
       if (tiempoEsperado % 30000 === 0) {
         console.log(`Renderizando... ${tiempoEsperado / 1000}s de ${maxTiempoRender / 1000}s`);
