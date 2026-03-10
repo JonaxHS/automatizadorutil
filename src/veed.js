@@ -70,11 +70,36 @@ export async function generarVideo(guion) {
 
     if (!autenticado) {
       // Verificar si hay indicadores que requieren login
-      const loginIndicators = await page.$$('text=/.*sign in.*/i, text=/.*log in.*/i, button:has-text("Login")');
-      if (loginIndicators.length > 0) {
+      console.log('No se detectó autenticación, verificando indicadores de login...');
+      let loginDetectado = false;
+      
+      const loginSelectors = [
+        'text=/.*sign in.*/i',
+        'text=/.*log in.*/i',
+        'text=/.*login.*/i',
+        'button:has-text("Login")',
+        'button:has-text("Sign in")',
+        'a:has-text("Sign in")'
+      ];
+      
+      for (const selector of loginSelectors) {
+        try {
+          const loginElements = await page.$$(selector);
+          if (loginElements.length > 0) {
+            console.log(`Indicador de login encontrado: ${selector}`);
+            loginDetectado = true;
+            break;
+          }
+        } catch (error) {
+          continue;
+        }
+      }
+      
+      if (loginDetectado) {
         await page.screenshot({ path: 'screenshots/veed-no-auth.png', fullPage: true });
         throw new Error('No autenticado en Veed.io. Inicia sesion desde la interfaz web. Revisa el screenshot: screenshots/veed-no-auth.png');
       }
+      
       // Si no hay indicadores de login, asumir que está autenticado
       console.log('No se encontraron indicadores de login, continuando...');
     }
@@ -190,9 +215,22 @@ export async function generarVideo(guion) {
       if (opcionesEncontradas) break;
 
       // Verificar si hay errores
-      const errorIndicators = await page.$$('text=/.*error.*/i, text=/.*failed.*/i, .error');
-      if (errorIndicators.length > 0) {
-        const errorText = await errorIndicators[0].innerText();
+      const errorSelectors = ['text=/.*error.*/i', 'text=/.*failed.*/i', '.error', '[class*="error"]'];
+      let errorEncontrado = null;
+      for (const selector of errorSelectors) {
+        try {
+          const elements = await page.$$(selector);
+          if (elements.length > 0) {
+            errorEncontrado = elements[0];
+            break;
+          }
+        } catch (error) {
+          continue;
+        }
+      }
+      
+      if (errorEncontrado) {
+        const errorText = await errorEncontrado.innerText();
         await page.screenshot({ path: 'screenshots/veed-error-generacion.png', fullPage: true });
         throw new Error(`Error en la generacion: ${errorText}`);
       }
@@ -372,9 +410,22 @@ export async function generarVideo(guion) {
         break;
       }
 
-      const errorIndicators = await page.$$('text=/.*error.*/i, text=/.*failed.*/i, .error');
-      if (errorIndicators.length > 0) {
-        const errorText = await errorIndicators[0].innerText();
+      const errorSelectors = ['text=/.*error.*/i', 'text=/.*failed.*/i', '.error', '[class*="error"]'];
+      let errorEncontrado = null;
+      for (const selector of errorSelectors) {
+        try {
+          const elements = await page.$$(selector);
+          if (elements.length > 0) {
+            errorEncontrado = elements[0];
+            break;
+          }
+        } catch (error) {
+          continue;
+        }
+      }
+      
+      if (errorEncontrado) {
+        const errorText = await errorEncontrado.innerText();
         await page.screenshot({ path: 'screenshots/veed-error-render.png', fullPage: true });
         throw new Error(`Error en el renderizado: ${errorText}`);
       }
