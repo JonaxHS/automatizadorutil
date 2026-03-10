@@ -135,7 +135,13 @@ app.get('/api/config', (req, res) => {
     duracion: config.video.duracion,
     qwenChatUrl: config.qwenChatUrl,
     veedUrl: config.veedUrl,
-    headless: config.headless
+    headless: config.headless,
+    telegramActivo: !!config.telegram.token,
+    telegramToken: config.telegram.token ? config.telegram.token.substring(0, 8) + '...' : '',
+    googleSheetId: config.googleSheetId,
+    googleSheetUrl: config.googleSheetId
+      ? `https://docs.google.com/spreadsheets/d/${config.googleSheetId}/edit`
+      : ''
   });
 });
 
@@ -218,10 +224,10 @@ app.post('/api/auth/cancel', async (req, res) => {
 
 // Actualizar configuración
 app.post('/api/config', (req, res) => {
-  const { tema, duracion, qwenChatUrl } = req.body;
+  const { tema, duracion, qwenChatUrl, telegramToken, googleSheetUrl } = req.body;
 
   if (estadoAutomatizacion.ejecutando) {
-    return res.status(400).json({ error: 'No se puede cambiar la configuración mientras se ejecuta una automatización' });
+    return res.status(400).json({ error: 'No se puede cambiar la configuracion mientras se ejecuta una automatizacion' });
   }
 
   if (tema) {
@@ -242,13 +248,35 @@ app.post('/api/config', (req, res) => {
     persistirVariableEnv('QWEN_CHAT_URL', qwenChatUrl);
   }
 
+  if (telegramToken) {
+    config.telegram.token = telegramToken;
+    process.env.TELEGRAM_BOT_TOKEN = telegramToken;
+    persistirVariableEnv('TELEGRAM_BOT_TOKEN', telegramToken);
+  }
+
+  if (googleSheetUrl) {
+    // Aceptar la URL completa o directamente el ID
+    const match = googleSheetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    const sheetId = match ? match[1] : googleSheetUrl.trim();
+    config.googleSheetId = sheetId;
+    process.env.GOOGLE_SHEET_ID = sheetId;
+    persistirVariableEnv('GOOGLE_SHEET_ID', sheetId);
+    // Invalida cache de series para que descargue la nueva hoja
+    import('./series.js').then(m => m.cargarSeries(true)).catch(() => { });
+  }
+
   res.json({
-    mensaje: 'Configuración actualizada',
+    mensaje: 'Configuracion actualizada',
     config: {
       tema: config.video.tema,
       duracion: config.video.duracion,
-      qwenChatUrl: config.qwenChatUrl
-    }
+      qwenChatUrl: config.qwenChatUrl,
+      googleSheetId: config.googleSheetId,
+      telegramActivo: !!config.telegram.token
+    },
+    nota: (telegramToken)
+      ? 'El token de Telegram se guardara en .env. Reinicia el contenedor para activarlo.'
+      : undefined
   });
 });
 

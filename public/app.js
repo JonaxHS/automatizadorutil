@@ -59,6 +59,7 @@ window.addEventListener('DOMContentLoaded', () => {
     cargarHistorial();
     cargarGuiones();
     cargarEstadoAuth();
+    cargarEstadoSeries();
 });
 
 // WebSocket eventos
@@ -297,8 +298,18 @@ async function cargarConfiguracion() {
         const response = await fetch('/api/config');
         const config = await response.json();
 
-        inputTema.value = config.tema;
+        inputTema.value = config.tema || '';
         inputQwenChatUrl.value = config.qwenChatUrl || '';
+
+        const inputGoogleSheet = document.getElementById('googleSheetUrl');
+        if (inputGoogleSheet) inputGoogleSheet.value = config.googleSheetUrl || '';
+
+        const inputTelegramToken = document.getElementById('telegramToken');
+        if (inputTelegramToken) {
+            inputTelegramToken.placeholder = config.telegramActivo
+                ? `Token activo (${config.telegramToken}) — escribe para cambiar`
+                : '123456789:ABCdef...obtenido con @BotFather';
+        }
     } catch (error) {
         console.error('Error al cargar configuración:', error);
     }
@@ -309,27 +320,31 @@ btnGuardarConfig.addEventListener('click', async () => {
     const tema = inputTema.value.trim();
     const qwenChatUrl = inputQwenChatUrl.value.trim();
 
-    if (!tema) {
-        mostrarNotificacion('Por favor, ingresa un tema', 'error');
-        return;
-    }
-
+    if (!tema) { mostrarNotificacion('Por favor, ingresa un tema', 'error'); return; }
     if (!qwenChatUrl || !qwenChatUrl.startsWith('http')) {
         mostrarNotificacion('Ingresa una URL valida para el chat de Qwen', 'error');
         return;
     }
 
+    const body = { tema, qwenChatUrl };
+    const telegramToken = document.getElementById('telegramToken')?.value.trim();
+    if (telegramToken) body.telegramToken = telegramToken;
+    const googleSheetUrl = document.getElementById('googleSheetUrl')?.value.trim();
+    if (googleSheetUrl) body.googleSheetUrl = googleSheetUrl;
+
     try {
         const response = await fetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tema, qwenChatUrl })
+            body: JSON.stringify(body)
         });
-
         const result = await response.json();
-
         if (response.ok) {
-            mostrarNotificacion('Configuración guardada', 'success');
+            let msg = 'Configuración guardada ✅';
+            if (result.nota) msg += '\n⚠️ ' + result.nota;
+            mostrarNotificacion(msg, 'success');
+            if (telegramToken) document.getElementById('telegramToken').value = '';
+            if (googleSheetUrl) cargarEstadoSeries();
         } else {
             mostrarNotificacion(result.error, 'error');
         }
@@ -337,6 +352,60 @@ btnGuardarConfig.addEventListener('click', async () => {
         mostrarNotificacion('Error al guardar configuración', 'error');
     }
 });
+
+// ─── Estado de Series ──────────────────────────────────────────────────────
+const seriesStatusEl = document.getElementById('seriesStatus');
+const btnRefreshSeries = document.getElementById('btnRefreshSeries');
+
+async function cargarEstadoSeries() {
+    if (!seriesStatusEl) return;
+    try {
+        const r = await fetch('/api/series');
+        if (!r.ok) throw new Error('No se pudo obtener el estado de series');
+        const d = await r.json();
+
+        if (d.error) {
+            seriesStatusEl.innerHTML = `<p class="placeholder">❌ ${d.error}</p>`;
+            return;
+        }
+
+        const pct = d.total > 0 ? Math.round((d.completados / d.total) * 100) : 0;
+        const dots = [...Array(d.totalReelsSerie)].map((_, i) => {
+            const cls = i < (d.reelActual - 1) ? 'done' : i === (d.reelActual - 1) ? 'current' : '';
+            return `<div class="reel-dot ${cls}"></div>`;
+        }).join('');
+
+        seriesStatusEl.innerHTML = `
+            <div class="series-info">
+                <div class="series-main">
+                    <div class="series-nombre">📺 ${d.serieActual || '—'}</div>
+                    <div class="series-meta">
+                        Serie <strong>${(d.serieIndex || 0) + 1}</strong> de ${d.totalSeries}
+                        &nbsp;•&nbsp; Reel <strong>${d.reelActual}</strong> / ${d.totalReelsSerie}
+                    </div>
+                </div>
+                <div class="series-reels">${dots}</div>
+            </div>
+            <div class="series-barra-wrap">
+                <div class="series-barra-global">
+                    <div class="series-barra-fill" style="width:${pct}%"></div>
+                </div>
+                <span class="series-barra-pct">${pct}%</span>
+            </div>
+            <div class="series-global-meta">
+                📌 ${d.completados} reels completados de ${d.total} totales
+                ${d.siguientePrompt ? `&nbsp;—&nbsp; 💬 <em>${d.siguientePrompt.substring(0, 70)}...</em>` : ''}
+            </div>
+        `;
+    } catch (error) {
+        if (seriesStatusEl) seriesStatusEl.innerHTML = `<p class="placeholder">⚠️ ${error.message}</p>`;
+    }
+}
+
+btnRefreshSeries?.addEventListener('click', cargarEstadoSeries);
+setInterval(cargarEstadoSeries, 30000);
+// ──────────────────────────────────────────────────────────────────────────
+
 
 // Probar solo generación de guion con Qwen
 btnTestQwen.addEventListener('click', async () => {
