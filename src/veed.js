@@ -15,10 +15,23 @@ export async function generarVideo(guion) {
     // Navegar directamente a AI Studio
     const aiStudioUrl = 'https://www.veed.io/ai-studio';
     console.log(`Navegando a ${aiStudioUrl}...`);
-    await page.goto(aiStudioUrl, {
-      waitUntil: 'networkidle',
-      timeout: config.timeouts.navigation
-    });
+    
+    // Intentar navegación con estrategia más tolerante
+    try {
+      await page.goto(aiStudioUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 90000
+      });
+    } catch (error) {
+      console.log('Primera navegación falló, reintentando con load...');
+      await page.goto(aiStudioUrl, {
+        waitUntil: 'load',
+        timeout: 90000
+      });
+    }
+    
+    // Esperar a que la página esté lista
+    await page.waitForTimeout(3000);
 
     await page.screenshot({ path: 'screenshots/veed-1-ai-studio.png', fullPage: true });
 

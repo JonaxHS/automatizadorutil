@@ -24,7 +24,7 @@ export const config = {
   
   // Timeouts
   timeouts: {
-    navigation: parseInt(process.env.TIMEOUT_NAVIGATION) || 60000,
-    generation: parseInt(process.env.TIMEOUT_GENERATION) || 180000
+    navigation: parseInt(process.env.TIMEOUT_NAVIGATION) || 120000,
+    generation: parseInt(process.env.TIMEOUT_GENERATION) || 300000
   }
 };
