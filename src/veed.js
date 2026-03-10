@@ -178,10 +178,12 @@ export async function generarVideo(guion) {
 
     await generateButton.click();
     console.log('Boton Generate clickeado, esperando generacion...');
+    await page.waitForTimeout(2000);
     await page.screenshot({ path: 'screenshots/veed-3-generate-clicked.png', fullPage: true });
 
     // Esperar hasta 5 minutos para que aparezcan las opciones
     console.log('Esperando opciones de configuracion (hasta 5 minutos)...');
+    console.log('Veed.io está procesando el guion y generando el video inicial...');
     let opcionesEncontradas = false;
     let tiempoEsperado = 0;
     const maxTiempoGeneracion = 300000; // 5 minutos
@@ -203,9 +205,12 @@ export async function generarVideo(guion) {
         try {
           const elemento = await page.$(selector);
           if (elemento) {
-            opcionesEncontradas = true;
-            console.log('Opciones de configuracion encontradas!');
-            break;
+            const isVisible = await elemento.isVisible();
+            if (isVisible) {
+              opcionesEncontradas = true;
+              console.log(`Opciones de configuracion encontradas con selector: ${selector}`);
+              break;
+            }
           }
         } catch (error) {
           continue;
@@ -214,25 +219,40 @@ export async function generarVideo(guion) {
 
       if (opcionesEncontradas) break;
 
-      // Verificar si hay errores
-      const errorSelectors = ['text=/.*error.*/i', 'text=/.*failed.*/i', '.error', '[class*="error"]'];
-      let errorEncontrado = null;
+      // Verificar si hay errores reales (con texto visible)
+      const errorSelectors = [
+        'text=/error:/i',
+        'text=/failed/i',
+        '[role="alert"]',
+        '.error-message',
+        '[class*="error-text"]',
+        '[data-testid*="error"]'
+      ];
+      
+      let errorReal = null;
       for (const selector of errorSelectors) {
         try {
           const elements = await page.$$(selector);
-          if (elements.length > 0) {
-            errorEncontrado = elements[0];
-            break;
+          for (const element of elements) {
+            const isVisible = await element.isVisible();
+            if (isVisible) {
+              const text = await element.innerText();
+              if (text && text.trim().length > 0) {
+                errorReal = text.trim();
+                console.log(`Error detectado con selector ${selector}: ${errorReal}`);
+                break;
+              }
+            }
           }
+          if (errorReal) break;
         } catch (error) {
           continue;
         }
       }
       
-      if (errorEncontrado) {
-        const errorText = await errorEncontrado.innerText();
+      if (errorReal) {
         await page.screenshot({ path: 'screenshots/veed-error-generacion.png', fullPage: true });
-        throw new Error(`Error en la generacion: ${errorText}`);
+        throw new Error(`Error en la generacion: ${errorReal}`);
       }
 
       await page.waitForTimeout(5000);
@@ -410,24 +430,40 @@ export async function generarVideo(guion) {
         break;
       }
 
-      const errorSelectors = ['text=/.*error.*/i', 'text=/.*failed.*/i', '.error', '[class*="error"]'];
-      let errorEncontrado = null;
+      // Verificar si hay errores reales durante el renderizado
+      const errorSelectors = [
+        'text=/error:/i',
+        'text=/failed/i',
+        '[role="alert"]',
+        '.error-message',
+        '[class*="error-text"]',
+        '[data-testid*="error"]'
+      ];
+      
+      let errorReal = null;
       for (const selector of errorSelectors) {
         try {
           const elements = await page.$$(selector);
-          if (elements.length > 0) {
-            errorEncontrado = elements[0];
-            break;
+          for (const element of elements) {
+            const isVisible = await element.isVisible();
+            if (isVisible) {
+              const text = await element.innerText();
+              if (text && text.trim().length > 0) {
+                errorReal = text.trim();
+                console.log(`Error detectado en renderizado con selector ${selector}: ${errorReal}`);
+                break;
+              }
+            }
           }
+          if (errorReal) break;
         } catch (error) {
           continue;
         }
       }
       
-      if (errorEncontrado) {
-        const errorText = await errorEncontrado.innerText();
+      if (errorReal) {
         await page.screenshot({ path: 'screenshots/veed-error-render.png', fullPage: true });
-        throw new Error(`Error en el renderizado: ${errorText}`);
+        throw new Error(`Error en el renderizado: ${errorReal}`);
       }
 
       await page.waitForTimeout(5000);
