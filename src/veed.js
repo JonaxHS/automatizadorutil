@@ -416,6 +416,61 @@ export async function generarVideo(guion) {
 
       await page.screenshot({ path: 'screenshots/veed-8-subtitulos.png', fullPage: true });
 
+      // Esperar el estado final de ajustes antes de presionar "Hecho"
+      // (como en la captura: panel estable y sin mensaje de carga).
+      console.log('Validando estado listo antes de hacer click en "Hecho"...');
+      const maxTiempoListo = 120000;
+      let tiempoListo = 0;
+      let estadoListo = false;
+
+      while (tiempoListo < maxTiempoListo) {
+        try {
+          const bodyText = await page.locator('body').innerText();
+          const texto = (bodyText || '').toLowerCase();
+
+          const sinCarga =
+            !texto.includes('esto puede tardar unos instantes') &&
+            !texto.includes('this may take a moment') &&
+            !texto.includes('generar video. esto puede tardar');
+
+          const tieneIdioma = /spanish|español/.test(texto);
+          const tieneVoz = /alex|carolina/.test(texto);
+          const tieneSubtitulos = /boba/.test(texto);
+
+          // Además validar que el botón Hecho exista y esté habilitado.
+          const botonHechoVisible = await page.$(
+            'button:has-text("Hecho"), button:has-text("Done"), button:has-text("Finish"), button:has-text("Complete")'
+          );
+
+          let hechoHabilitado = false;
+          if (botonHechoVisible) {
+            try {
+              hechoHabilitado = await botonHechoVisible.isEnabled();
+            } catch (error) {
+              hechoHabilitado = false;
+            }
+          }
+
+          if (sinCarga && tieneIdioma && tieneVoz && tieneSubtitulos && hechoHabilitado) {
+            estadoListo = true;
+            console.log('Estado listo detectado: parametros visibles y boton Hecho habilitado.');
+            break;
+          }
+        } catch (error) {
+          // Seguimos esperando
+        }
+
+        await page.waitForTimeout(3000);
+        tiempoListo += 3000;
+      }
+
+      if (!estadoListo) {
+        console.log('No se pudo confirmar estado listo completo, intentando continuar con el mejor estado disponible.');
+        await page.screenshot({ path: 'screenshots/veed-8b-estado-no-confirmado.png', fullPage: true });
+      } else {
+        await page.screenshot({ path: 'screenshots/veed-8b-estado-listo.png', fullPage: true });
+      }
+
       // Buscar y hacer clic en el botón "Hecho"
       console.log('Buscando boton "Hecho"...');
       const hechoSelectors = [
