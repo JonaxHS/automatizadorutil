@@ -626,6 +626,20 @@ app.post('/api/series/reiniciar', (req, res) => {
   res.json({ ok: true, mensaje: 'Progreso reiniciado' });
 });
 
+app.post('/api/series/seleccionar', async (req, res) => {
+  try {
+    const { serieIndex, reelIndex } = req.body;
+    if (serieIndex === undefined) return res.status(400).json({ error: 'Falta serieIndex' });
+    import('./series.js').then(async m => {
+      await m.seleccionarSerie(parseInt(serieIndex), parseInt(reelIndex || 0));
+      res.json({ ok: true, mensaje: 'Serie seleccionada manual' });
+    }).catch(e => res.status(500).json({ error: e.message }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 // WebSocket para actualizaciones en tiempo real
 io.on('connection', (socket) => {
   console.log('Cliente conectado:', socket.id);

@@ -173,7 +173,8 @@ export async function getEstadoSeries() {
             totalReelsSerie: REELS_POR_SERIE,
             totalSeries: series.length,
             completados: serieIndex * REELS_POR_SERIE + reelIndex,
-            total: series.length * REELS_POR_SERIE
+            total: series.length * REELS_POR_SERIE,
+            seriesArray: series
         };
     } catch (error) {
         return { error: error.message };
@@ -186,6 +187,19 @@ export async function getEstadoSeries() {
 export function reiniciarProgreso() {
     guardarEstado({ serieIndex: 0, reelIndex: 0 });
     console.log('[Series] Progreso reiniciado.');
+}
+
+/**
+ * Salta a un índice de serie específico y al reel especificado (0-4).
+ */
+export async function seleccionarSerie(serieIndex, reelIndex = 0) {
+    const series = await cargarSeries();
+    if (serieIndex < 0 || serieIndex >= series.length) {
+        throw new Error('Índice de serie fuera de rango');
+    }
+    const safeReelIndex = Math.max(0, Math.min(reelIndex, REELS_POR_SERIE - 1));
+    guardarEstado({ serieIndex, reelIndex: safeReelIndex });
+    console.log(`[Series] Saltando a serie "${series[serieIndex]}" (id: ${serieIndex}), reel: ${safeReelIndex}`);
 }
 
 export { REELS_POR_SERIE };

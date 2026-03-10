@@ -93,6 +93,23 @@
                 <div id="seriesStatus" class="series-status">
                     <p class="placeholder">Cargando estado de series...</p>
                 </div>
+
+                <div class="series-controls"
+                    style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border); display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                    <select id="seriesSelect" class="form-control" style="flex: 1; min-width: 200px;">
+                        <option value="">Cargando series...</option>
+                    </select>
+                    <select id="reelSelect" class="form-control" style="width: auto;">
+                        <option value="0">Reel 1</option>
+                        <option value="1">Reel 2</option>
+                        <option value="2">Reel 3</option>
+                        <option value="3">Reel 4</option>
+                        <option value="4">Reel 5</option>
+                    </select>
+                    <button id="btnSelectSeries" class="btn btn-primary btn-small">Ir a esta serie</button>
+                    <button id="btnRestartSeries" class="btn btn-secondary btn-small"
+                        style="background-color: #d32f2f; color: white;">Reiniciar todo</button>
+                </div>
             </section>
 
             <!-- Estado y Progreso -->

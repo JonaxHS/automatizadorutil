@@ -457,6 +457,19 @@ async function cargarEstadoSeries() {
                 ${d.siguientePrompt ? `&nbsp;—&nbsp; 💬 <em>${d.siguientePrompt.substring(0, 70)}...</em>` : ''}
             </div>
         `;
+
+        // Llenar el select
+        const sel = document.getElementById('seriesSelect');
+        if (sel && d.seriesArray) {
+            // Guardar selección actual si la hay
+            const currentVal = sel.value;
+            sel.innerHTML = d.seriesArray.map((titulo, idx) =>
+                `<option value="${idx}">${idx + 1}. ${titulo}</option>`
+            ).join('');
+            if (currentVal && d.seriesArray[currentVal]) sel.value = currentVal;
+            else sel.value = d.serieIndex;
+        }
+
     } catch (error) {
         if (seriesStatusEl) seriesStatusEl.innerHTML = `<p class="placeholder">⚠️ ${error.message}</p>`;
     }
@@ -464,8 +477,37 @@ async function cargarEstadoSeries() {
 
 btnRefreshSeries?.addEventListener('click', cargarEstadoSeries);
 setInterval(cargarEstadoSeries, 30000);
-// ──────────────────────────────────────────────────────────────────────────
 
+document.getElementById('btnRestartSeries')?.addEventListener('click', async () => {
+    if (!confirm('💥 ¿Estás seguro de que quieres reiniciar TODO el progreso de las series desde cero?')) return;
+    try {
+        await fetch('/api/series/reiniciar', { method: 'POST' });
+        await cargarEstadoSeries();
+        await cargarConfiguracion(); // Recargar prompt precargado
+        mostrarNotificacion('Progreso de series reiniciado', 'success');
+    } catch (e) {
+        mostrarNotificacion('Error al reiniciar', 'error');
+    }
+});
+
+document.getElementById('btnSelectSeries')?.addEventListener('click', async () => {
+    const sIdx = document.getElementById('seriesSelect').value;
+    const rIdx = document.getElementById('reelSelect').value;
+    if (!sIdx) return;
+    try {
+        await fetch('/api/series/seleccionar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ serieIndex: sIdx, reelIndex: rIdx })
+        });
+        await cargarEstadoSeries();
+        await cargarConfiguracion(); // Actualiza preview del prompt
+        mostrarNotificacion('Posición de serie actualizada', 'success');
+    } catch (error) {
+        mostrarNotificacion('Error al seleccionar serie', 'error');
+    }
+});
+// ──────────────────────────────────────────────────────────────────────────
 
 // Probar solo generación de guion con Qwen
 btnTestQwen.addEventListener('click', async () => {
