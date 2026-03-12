@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { generarGuion } from './qwen.js';
 import { generarVideo } from './veed.js';
 import {
