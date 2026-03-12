@@ -154,6 +154,21 @@
                 <button id="btnSaveSchedule" class="btn btn-primary" style="width: 100%;">💾 Guardar Horarios</button>
             </section>
 
+            <!-- Configuración Facebook API -->
+            <section class="card config-panel" style="margin-bottom: 25px;">
+                <h2>📘 Configuración Facebook Reels</h2>
+                <div class="form-group">
+                    <label for="fbPageId">ID de tu Página de Facebook</label>
+                    <input type="text" id="fbPageId" class="form-control" placeholder="Ej: 2281550972165115">
+                </div>
+                <div class="form-group">
+                    <label for="fbAccessToken">Access Token de la Página (Graph API)</label>
+                    <input type="password" id="fbAccessToken" class="form-control" placeholder="Ej: EAAWU...">
+                </div>
+                <button id="btnSaveFbConfig" class="btn btn-primary" style="width: 100%;">💾 Guardar Credenciales
+                    FB</button>
+            </section>
+
             <!-- Estado y Progreso -->
             <section class="card status-panel" id="statusPanel" style="display: none;">
                 <h2>📊 Estado de la Automatización</h2>

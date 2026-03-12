@@ -467,6 +467,18 @@ async function ejecutarAutomatizacion() {
 
     emitirEstado('Video generado exitosamente', 90, 'success');
 
+    // Escribir JSON con metadatos del video 
+    // Para conservar la descripción de Qwen y poder publicarlo en FB luego
+    if (localVideo) {
+      const nombreBase = path.basename(localVideo, '.mp4');
+      const rutaJson = path.join(process.cwd(), 'public', 'videos', `${nombreBase}.json`);
+      fs.writeFileSync(rutaJson, JSON.stringify({
+        nombre: path.basename(localVideo),
+        descripcion: descripcion || config.video.tema,
+        fecha: new Date().toISOString()
+      }, null, 2), 'utf-8');
+    }
+
     // Módulos posteriores: Subida a Facebook
     if (localVideo && config.facebook.pageId && config.facebook.accessToken) {
       try {
@@ -631,9 +643,19 @@ app.get('/api/videos', (req, res) => {
       .filter(f => f.endsWith('.mp4'))
       .map(file => {
         const stats = fs.statSync(path.join(videosDir, file));
+
+        let descripcionItem = '';
+        const jsonPath = path.join(videosDir, file.replace('.mp4', '.json'));
+        if (fs.existsSync(jsonPath)) {
+          try {
+            descripcionItem = JSON.parse(fs.readFileSync(jsonPath, 'utf8')).descripcion || '';
+          } catch (e) { }
+        }
+
         return {
           nombre: file,
           url: `/videos/${file}`,
+          descripcion: descripcionItem,
           fecha: stats.mtime,
           tamaño: (stats.size / (1024 * 1024)).toFixed(2) + ' MB'
         };
@@ -653,9 +675,76 @@ app.delete('/api/videos/:nombre', (req, res) => {
       return res.status(404).json({ error: 'Video no encontrado' });
     }
     fs.unlinkSync(rutaVideo);
+
+    // Eliminar tb el JSON asociado si existe
+    const rutaJson = path.join(videosDir, nombre.replace('.mp4', '.json'));
+    if (fs.existsSync(rutaJson)) {
+      fs.unlinkSync(rutaJson);
+    }
+
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ── API Facebook Configuración y Upload ──────────────────────────────────────────
+
+app.get('/api/facebook/config', (req, res) => {
+  res.json(config.facebook);
+});
+
+app.post('/api/facebook/config', (req, res) => {
+  try {
+    const { pageId, accessToken } = req.body;
+
+    // Validar formato mínimo
+    if (pageId !== undefined) config.facebook.pageId = String(pageId).trim();
+    if (accessToken !== undefined) config.facebook.accessToken = String(accessToken).trim();
+
+    // Persistir usando el helper `persistirVariableEnv` o similar si ya existiera,
+    // o simplemente manipularíamos manualmente el `.env`. 
+    // Como el script pide inyectarlos en el .env:
+    let envContent = fs.existsSync('.env') ? fs.readFileSync('.env', 'utf-8') : '';
+
+    const upsertEnv = (key, value) => {
+      const regex = new RegExp(`^${key}=.*`, 'm');
+      if (regex.test(envContent)) {
+        envContent = envContent.replace(regex, `${key}=${value}`);
+      } else {
+        envContent += `\n${key}=${value}`;
+      }
+    };
+
+    upsertEnv('FB_PAGE_ID', config.facebook.pageId);
+    upsertEnv('FB_ACCESS_TOKEN', config.facebook.accessToken);
+
+    fs.writeFileSync('.env', envContent.trim() + '\n', 'utf-8');
+
+    res.json({ ok: true, mensaje: 'Credenciales de Facebook guardadas en .env y memoria.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/facebook/upload', async (req, res) => {
+  const { nombre, descripcion } = req.body;
+  if (!nombre) return res.status(400).json({ error: 'Falta nombre del video' });
+
+  const localVideoPath = path.join(videosDir, nombre);
+  if (!fs.existsSync(localVideoPath)) return res.status(404).json({ error: 'El archivo MP4 no existe' });
+
+  // Como la subida a fb es pesada, respondemos de inmediato y la procesamos en bg.
+  res.json({ ok: true, mensaje: `Iniciando subida manual de ${nombre} a Facebook...` });
+
+  try {
+    emitirEstado(`Iniciando subida Manual a FB Reels de ${nombre}...`, 0, 'info');
+    await subirReelAFacebook(localVideoPath, descripcion || '', (msg) => {
+      emitirEstado(`[FB Manual] ${msg}`, 0, 'info');
+    });
+    emitirEstado(`[FB Manual] Proceso de ${nombre} finalizado.`, 0, 'success');
+  } catch (e) {
+    emitirEstado(`[FB Manual] Error: ${e.message}`, 0, 'error');
   }
 });
 

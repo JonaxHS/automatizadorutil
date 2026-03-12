@@ -44,6 +44,10 @@ const modalClose = document.querySelector('.modal-close');
 const modalTitulo = document.getElementById('modalGuionTitulo');
 const modalContenido = document.getElementById('modalGuionContenido');
 
+const fbPageId = document.getElementById('fbPageId');
+const fbAccessToken = document.getElementById('fbAccessToken');
+const btnSaveFbConfig = document.getElementById('btnSaveFbConfig');
+
 // Estado actual
 let estadoActual = {
     ejecutando: false,
@@ -63,6 +67,7 @@ window.addEventListener('DOMContentLoaded', () => {
     cargarVideos();
     cargarEstadoAuth();
     cargarEstadoSeries();
+    cargarFacebookConfig();
 });
 
 // WebSocket eventos
@@ -378,7 +383,39 @@ async function cargarConfiguracion() {
     }
 }
 
-// Guardar configuración
+// Cargar Configuración de Facebook
+async function cargarFacebookConfig() {
+    try {
+        const res = await fetch('/api/facebook/config');
+        const data = await res.json();
+        if (fbPageId) fbPageId.value = data.pageId || '';
+        if (fbAccessToken) fbAccessToken.value = data.accessToken || '';
+    } catch (e) { console.error('Error cargando fb config:', e); }
+}
+
+// Guardar configuración FB
+btnSaveFbConfig?.addEventListener('click', async () => {
+    try {
+        btnSaveFbConfig.disabled = true;
+        const res = await fetch('/api/facebook/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                pageId: fbPageId.value,
+                accessToken: fbAccessToken.value
+            })
+        });
+        const data = await res.json();
+        if (res.ok) mostrarNotificacion(data.mensaje || 'Credenciales FB Guardadas', 'success');
+        else mostrarNotificacion(data.error || 'Error guardando FB', 'error');
+    } catch (e) {
+        mostrarNotificacion('Error de red al guardar FB', 'error');
+    } finally {
+        btnSaveFbConfig.disabled = false;
+    }
+});
+
+// Guardar configuración general
 btnGuardarConfig.addEventListener('click', async () => {
     const tema = inputTema.value.trim();
     const qwenChatUrl = inputQwenChatUrl.value.trim();
@@ -894,7 +931,8 @@ async function cargarVideos() {
                         <div class="script-item-name">🎥 ${video.nombre}</div>
                         <div class="script-item-info">${fecha} • ${tamano}</div>
                     </div>
-                    <a href="${video.url}" download class="btn btn-small btn-primary" title="Descargar Veed">⬇️ MP4</a>
+                    <button class="btn btn-small btn-primary fb-upload-btn" title="Publicar en Facebook">☁️ Subir a FB</button>
+                    <a href="${video.url}" download class="btn btn-small btn-primary" style="margin-left:8px;" title="Descargar Veed">⬇️ MP4</a>
                     <button class="btn btn-small btn-danger video-delete-btn" style="margin-left:8px;" title="Eliminar Video">🗑️</button>
                 </div>
                 <div class="video-preview-block" style="width: 100%;">
@@ -903,6 +941,7 @@ async function cargarVideos() {
             `;
 
             div.querySelector('.video-delete-btn').onclick = () => eliminarVideo(video.nombre, div);
+            div.querySelector('.fb-upload-btn').onclick = () => subirVideoFacebook(video.nombre, video.descripcion, div);
             videosLista.appendChild(div);
         });
     } catch (error) {
@@ -913,6 +952,30 @@ async function cargarVideos() {
 
 // Actualizar videos al apretar botón
 btnActualizarVideos.addEventListener('click', cargarVideos);
+
+// Subida manual a Facebook Paginado
+async function subirVideoFacebook(nombre, descripcion, elementoBtn) {
+    if (!confirm(`¿Estás seguro de que deseas subir el video "${nombre}" a los Reels de tu página de Facebook configurada?`)) return;
+
+    try {
+        statusPanel.style.display = 'block';
+        const res = await fetch('/api/facebook/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, descripcion })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            mostrarNotificacion(data.mensaje, 'info');
+            if (chkAutoScroll) consolaLogs.scrollTop = consolaLogs.scrollHeight;
+        } else {
+            mostrarNotificacion(data.error || 'Error subiendo a Meta', 'error');
+        }
+    } catch (e) {
+        mostrarNotificacion('Error de red intentando contactar Graph API', 'error');
+    }
+}
 
 // Eliminar un video
 async function eliminarVideo(nombre, elemento) {
