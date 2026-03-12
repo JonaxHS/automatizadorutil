@@ -886,13 +886,13 @@ async function cargarVideos() {
             div.style.flexDirection = 'column';
 
             const fecha = new Date(video.fecha).toLocaleString();
-            const tamano = (video.tamano / (1024 * 1024)).toFixed(2); // Convertir a MB
+            const tamano = video.tamaño || video.tamano || '0 MB'; // El server manda 'tamaño' como string formateado ('XX MB')
 
             div.innerHTML = `
                 <div class="script-item-row" style="margin-bottom: 10px;">
                     <div class="script-item-info-block" style="flex:1">
                         <div class="script-item-name">🎥 ${video.nombre}</div>
-                        <div class="script-item-info">${fecha} • ${tamano} MB</div>
+                        <div class="script-item-info">${fecha} • ${tamano}</div>
                     </div>
                     <a href="${video.url}" download class="btn btn-small btn-primary" title="Descargar Veed">⬇️ MP4</a>
                     <button class="btn btn-small btn-danger video-delete-btn" style="margin-left:8px;" title="Eliminar Video">🗑️</button>
