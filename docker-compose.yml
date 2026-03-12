@@ -16,7 +16,7 @@ services:
       # Persistir screenshots, guiones y videos generados
       - ./screenshots:/app/screenshots
       - ./guiones:/app/guiones
-      - ./videos:/app/videos
+      - ./videos:/app/public/videos
       - ./logs:/app/logs
     restart: unless-stopped
     # Configuración de memoria y CPU para el contenedor
