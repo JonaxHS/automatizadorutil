@@ -36,13 +36,24 @@ export async function subirReelAFacebook(localVideoPath, descripcion, onProgress
         const uploadSuccess = await uploadVideoContent(pageId, videoId, accessToken, localVideoPath);
         if (!uploadSuccess) throw new Error('Falló la transferencia binaria del video a Meta.');
 
-        // 3. Finalizar y publicar directamente (sin esperar el lento chequeo de FB)
-        onProgress('Transferecia completa. Configurando parámetros del Reel e instruyendo a Meta para publicar...');
-        await finishUploadAndPublish(pageId, videoId, accessToken, descripcion, 'PUBLISHED');
+        // 3. Finalizar y publicar en formato DRAFT primero para revisión de copyright obligatoria
+        onProgress('Transferecia completa. Configurando parámetros del Reel e iniciando revisión de Derechos de Autor...');
+        await finishUploadAndPublish(pageId, videoId, accessToken, descripcion, 'DRAFT');
 
-        onProgress('✅ ¡Video enviado exitosamente a Meta! El Reel aparecerá publicado en tu página en unos minutos en cuanto Facebook termine de procesarlo internamente.');
+        // 4. Polling (Chequeo de estado y derechos de autor)
+        onProgress('El video ha sido recibido por Facebook. Esperando revisión de Copyright... (Advertencia: Facebook puede tardar hasta 15 minutos en validar)');
+        const passedCopyright = await poolCopyrightStatus(videoId, accessToken, onProgress);
 
-        return true;
+        if (passedCopyright) {
+            onProgress('✅ ¡Revisión de Copyright pasada exitosamente! Publicando reel en el muro de tu página...');
+            // Le pedimos explícitamente a Facebook que si era DRAFT lo mude a PUBLISHED
+            await updateVideoStatus(videoId, accessToken, 'PUBLISHED');
+            onProgress('🎬 ¡Reel publicado correctamente en la página de Facebook!');
+            return true;
+        } else {
+            onProgress('❌ Precaución: El video NO superó la prueba limpia de Copyright o la API de Facebook sigue estancada. El video NO será publicado y se quedó como Borrador (DRAFT) por seguridad.');
+            return false;
+        }
 
     } catch (error) {
         onProgress(`❌ Error grave interactuando con Facebook API: ${error.message}`);
