@@ -867,6 +867,73 @@ async function eliminarGuion(nombre, elemento) {
     }
 }
 
+// Cargar videos guardados
+async function cargarVideos() {
+    try {
+        const response = await fetch('/api/videos');
+        const videos = await response.json();
+
+        if (videos.length === 0) {
+            videosLista.innerHTML = '<p class="placeholder">No hay videos guardados localmente</p>';
+            return;
+        }
+
+        videosLista.innerHTML = '';
+
+        videos.forEach(video => {
+            const div = document.createElement('div');
+            div.className = 'script-item'; // Reutilizamos el estilo de panel
+            div.style.flexDirection = 'column';
+
+            const fecha = new Date(video.fecha).toLocaleString();
+            const tamano = (video.tamano / (1024 * 1024)).toFixed(2); // Convertir a MB
+
+            div.innerHTML = `
+                <div class="script-item-row" style="margin-bottom: 10px;">
+                    <div class="script-item-info-block" style="flex:1">
+                        <div class="script-item-name">🎥 ${video.nombre}</div>
+                        <div class="script-item-info">${fecha} • ${tamano} MB</div>
+                    </div>
+                    <a href="${video.url}" download class="btn btn-small btn-primary" title="Descargar Veed">⬇️ MP4</a>
+                    <button class="btn btn-small btn-danger video-delete-btn" style="margin-left:8px;" title="Eliminar Video">🗑️</button>
+                </div>
+                <div class="video-preview-block" style="width: 100%;">
+                    <video src="${video.url}" controls style="width: 100%; border-radius: 8px; background: #000; max-height: 250px;"></video>
+                </div>
+            `;
+
+            div.querySelector('.video-delete-btn').onclick = () => eliminarVideo(video.nombre, div);
+            videosLista.appendChild(div);
+        });
+    } catch (error) {
+        console.error('Error al cargar videos:', error);
+        videosLista.innerHTML = '<p class="placeholder" style="color:var(--error)">Error al cargar videos</p>';
+    }
+}
+
+// Actualizar videos al apretar botón
+btnActualizarVideos.addEventListener('click', cargarVideos);
+
+// Eliminar un video
+async function eliminarVideo(nombre, elemento) {
+    if (!confirm(`¿Eliminar el video "${nombre}" permanentemente?`)) return;
+    try {
+        const response = await fetch(`/api/videos/${nombre}`, { method: 'DELETE' });
+        const result = await response.json();
+        if (response.ok) {
+            elemento.remove();
+            mostrarNotificacion('Video eliminado', 'success');
+            if (videosLista.children.length === 0) {
+                videosLista.innerHTML = '<p class="placeholder">No hay videos guardados localmente</p>';
+            }
+        } else {
+            mostrarNotificacion(result.error || 'Error al eliminar', 'error');
+        }
+    } catch (error) {
+        mostrarNotificacion('Error al eliminar video', 'error');
+    }
+}
+
 // Ver guion en modal
 async function verGuion(nombre) {
     try {
