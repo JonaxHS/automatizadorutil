@@ -505,7 +505,7 @@ export async function generarVideo(guion) {
         page,
         'Idioma Spanish',
         ['text=/english/i', 'text=/language/i', 'text=/idioma/i', '[aria-haspopup="listbox"]'],
-        ['text=/.*spanish.*/i', 'text=/.*español.*/i', '[value*="spanish"]', 'option:has-text("Spanish")']
+        ['text="Spanish (Spain)"', 'text=/.*spanish \\(spain\\).*/i', 'text=/.*spanish.*/i', 'text=/.*español.*/i', '[value*="spanish"]', 'option:has-text("Spanish")']
       );
       await page.waitForTimeout(2000); // esperar que el idioma cargue las voces
       await safeScreenshot(page, { path: 'screenshots/veed-6-spanish.png', fullPage: true });
@@ -515,7 +515,7 @@ export async function generarVideo(guion) {
         page,
         'Voz Alex/Carolina',
         ['text=/adam/i', 'text=/bella/i', 'text=/antoni/i', 'text=/arnold/i', 'text=/voice/i', 'text=/voz/i', '[aria-label*="voice"]'],
-        ['text=/.*carolina.*/i', 'text=/.*alex.*/i', 'div[role="option"]:has-text("Carolina")', 'div[role="option"]:has-text("Alex")']
+        ['text="Carolina (female)"', 'text="Alex (male)"', 'text=/.*carolina \\(female\\).*/i', 'text=/.*alex \\(male\\).*/i', 'text=/.*carolina.*/i', 'text=/.*alex.*/i', 'div[role="option"]:has-text("Carolina")', 'div[role="option"]:has-text("Alex")']
       );
       if (!voiceSelected) console.log('No se pudo encontrar en la lista, continuando...');
       await safeScreenshot(page, { path: 'screenshots/veed-7-voz.png', fullPage: true });
