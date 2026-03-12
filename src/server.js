@@ -358,18 +358,22 @@ app.post('/api/test-veed', async (req, res) => {
   try {
     emitirEstado('Enviando guion a Veed.io AI Studio...', 20, 'info');
 
-    const urlVideo = await generarVideo(guion);
+    const resultadoVeed = await generarVideo(guion);
+    const urlVideo = resultadoVeed.url;
+    const localVideo = resultadoVeed.localUrl;
 
     emitirEstado('Video generado exitosamente en Veed.io', 100, 'success');
 
     estadoAutomatizacion.ultimoVideo = {
       url: urlVideo,
+      localUrl: localVideo,
       fecha: new Date().toISOString()
     };
 
     res.json({
       exito: true,
       videoUrl: urlVideo,
+      localUrl: localVideo,
       mensaje: 'Video generado exitosamente en Veed.io'
     });
   } catch (error) {
@@ -457,16 +461,19 @@ async function ejecutarAutomatizacion() {
     emitirEstado('Iniciando generación de video en Veed.io...', 50, 'info');
 
     // PASO 2: Generar video
-    const urlVideo = await generarVideo(guion);
+    const resultadoVeed = await generarVideo(guion);
+    const urlVideo = resultadoVeed.url;
+    const localVideo = resultadoVeed.localUrl;
 
     emitirEstado('Video generado exitosamente', 90, 'success');
 
     estadoAutomatizacion.ultimoVideo = {
       url: urlVideo,
+      localUrl: localVideo,
       fecha: new Date().toISOString()
     };
 
-    guardarLog('video', 'Video generado', { url: urlVideo });
+    guardarLog('video', 'Video generado', { url: urlVideo, localUrl: localVideo });
 
     // Agregar al historial
     estadoAutomatizacion.historial.unshift({
@@ -594,6 +601,44 @@ app.delete('/api/screenshots/:nombre', (req, res) => {
   }
 });
 
+// ── API Videos Guardados ────────────────────────────────────────────────────
+const videosDir = path.join(__dirname, '../public/videos');
+if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
+
+app.get('/api/videos', (req, res) => {
+  try {
+    const files = fs.readdirSync(videosDir)
+      .filter(f => f.endsWith('.mp4'))
+      .map(file => {
+        const stats = fs.statSync(path.join(videosDir, file));
+        return {
+          nombre: file,
+          url: `/videos/${file}`,
+          fecha: stats.mtime,
+          tamaño: (stats.size / (1024 * 1024)).toFixed(2) + ' MB'
+        };
+      })
+      .sort((a, b) => b.fecha - a.fecha);
+    res.json(files);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/videos/:nombre', (req, res) => {
+  try {
+    const { nombre } = req.params;
+    const rutaVideo = path.join(videosDir, nombre);
+    if (!fs.existsSync(rutaVideo)) {
+      return res.status(404).json({ error: 'Video no encontrado' });
+    }
+    fs.unlinkSync(rutaVideo);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Obtener historial
 app.get('/api/historial', (req, res) => {
   res.json(estadoAutomatizacion.historial);
@@ -650,6 +695,12 @@ initScheduler(async () => {
     // 2. Veed
     const { generarVideo } = await import('./veed.js');
     const resultadoVeed = await generarVideo(resultadoQwen.guion, sessionDir, emitirEstado);
+
+    estadoAutomatizacion.ultimoVideo = {
+      url: resultadoVeed.url,
+      localUrl: resultadoVeed.localUrl,
+      fecha: new Date().toISOString()
+    };
 
     // 3. Terminar
     estadoAutomatizacion.ejecutando = false;

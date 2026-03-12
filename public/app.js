@@ -32,6 +32,8 @@ const descripcionPreview = document.getElementById('descripcionPreview');
 const videoResult = document.getElementById('videoResult');
 const historialContainer = document.getElementById('historial');
 const guionesLista = document.getElementById('guionesLista');
+const videosLista = document.getElementById('videosLista');
+const btnActualizarVideos = document.getElementById('btnActualizarVideos');
 const connectionStatus = document.getElementById('connectionStatus');
 const authStatus = document.getElementById('authStatus');
 const authSessionInfo = document.getElementById('authSessionInfo');
@@ -58,6 +60,7 @@ window.addEventListener('DOMContentLoaded', () => {
     cargarConfiguracion();
     cargarHistorial();
     cargarGuiones();
+    cargarVideos();
     cargarEstadoAuth();
     cargarEstadoSeries();
 });

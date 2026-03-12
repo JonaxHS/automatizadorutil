@@ -183,12 +183,18 @@ export function iniciarBot(emitirEstado) {
 
             // Generar video
             await bot.sendMessage(chatId, '🎬 Generando video en Veed.io... (puede tardar varios minutos)');
-            const urlVideo = await generarVideo(guion);
+            const resultadoVeed = await generarVideo(guion);
+            const urlVideo = resultadoVeed.url;
+            const localVideo = resultadoVeed.localUrl;
+
             if (emitirEstado) emitirEstado('Telegram: Video generado exitosamente', 100, 'success');
-            await bot.sendMessage(chatId,
-                `🎉 *¡Video generado exitosamente!*\n\n🔗 [Abrir en Veed.io](${urlVideo})`,
-                { parse_mode: 'Markdown' }
-            );
+
+            let mensajeExito = `🎉 *¡Video generado exitosamente!*\n\n🔗 [Abrir en Veed.io](${urlVideo})`;
+            if (localVideo) {
+                mensajeExito += `\n📥 *Descargado localmente:* \`${localVideo}\``;
+            }
+
+            await bot.sendMessage(chatId, mensajeExito, { parse_mode: 'Markdown', disable_web_page_preview: true });
 
             if (onExito) await onExito(guion, descripcion, urlVideo);
             return true;

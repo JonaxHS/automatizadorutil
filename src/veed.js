@@ -816,7 +816,64 @@ export async function generarVideo(guion) {
     const finalUrl = page.url();
     console.log('URL del proyecto:', finalUrl);
 
-    return finalUrl;
+    // ==========================================
+    // Descargar el Video MP4 a local
+    // ==========================================
+    let localUrl = null;
+    try {
+      console.log('Intentando descargar el video MP4 localmente...');
+      if (typeof emitirEstado === 'function') {
+        emitirEstado('Descargando MP4 desde Veed...', 95, 'info');
+      }
+
+      const downloadSelectors = [
+        'button:has-text("Download MP4")',
+        'button:has-text("Descargar MP4")',
+        'button:has-text("Download")',
+        'button:has-text("Descargar")',
+        'a[download]',
+        '[aria-label*="download"]'
+      ];
+
+      let btnDescarga = null;
+      for (const selector of downloadSelectors) {
+        try {
+          btnDescarga = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
+          if (btnDescarga) {
+            console.log(`Botón Descargar encontrado con selector: ${selector}`);
+            break;
+          }
+        } catch (e) { }
+      }
+
+      if (btnDescarga) {
+        console.log('Iniciando descarga en Playwright...');
+        // Empezar a esperar el evento de descarga ANTES de hacer click
+        const downloadPromise = page.waitForEvent('download', { timeout: 120000 });
+        await btnDescarga.click();
+
+        const download = await downloadPromise;
+
+        const fs = await import('fs');
+        const path = await import('path');
+        const videosDir = path.join(process.cwd(), 'public', 'videos');
+        if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
+
+        const fileName = `video_${Date.now()}.mp4`;
+        const localPath = path.join(videosDir, fileName);
+
+        await download.saveAs(localPath);
+        console.log(`Video descargado exitosamente en: ${localPath}`);
+        localUrl = `/videos/${fileName}`;
+      } else {
+        console.log('No se encontro el botón de descargar, se omite guardado local.');
+      }
+    } catch (e) {
+      console.log('Fallo al intentar descargar el video localmente:', e.message);
+    }
+    // ==========================================
+
+    return { url: finalUrl, localUrl };
   } catch (error) {
     console.error('Error al generar video:', error.message);
     await safeScreenshot(page, { path: 'screenshots/veed-error.png' });
