@@ -7,7 +7,7 @@ import { config } from '../config.js';
  * para la publicación de Reels en una Página de Facebook.
  */
 
-const API_VERSION = 'v19.0';
+const API_VERSION = 'v22.0';
 const BASE_URL = `https://graph.facebook.com/${API_VERSION}`;
 
 /**
