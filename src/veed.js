@@ -452,7 +452,29 @@ export async function generarVideo(guion) {
       const seleccionarEnDropdown = async (page, targetName, labelLocators, optionTexts) => {
         console.log(`Intentando seleccionar ${targetName} en lista...`);
 
-        // 1. Abrir la lista clickeando justo debajo de la etiqueta (Language, Voice, Subtitles)
+        // 1. Verificar si la opción ya parece estar seleccionada
+        // Buscamos si alguno de los textos deseados ya es visible en la pantalla
+        // cerca de donde se asume que está el dropdown.
+        for (const loc of labelLocators) {
+          try {
+            const els = await page.$$(loc);
+            for (const el of els) {
+              if (await el.isVisible()) {
+                const labelText = await page.evaluate(el => el.parentElement.innerText, el);
+                if (labelText) {
+                  for (const textOpt of optionTexts) {
+                    if (labelText.toLowerCase().includes(textOpt.toLowerCase())) {
+                      console.log(`[Veed] ${targetName} ya parece estar seleccionado por defecto: "${textOpt}". Omitiendo clic.`);
+                      return true;
+                    }
+                  }
+                }
+              }
+            }
+          } catch (e) { }
+        }
+
+        // 2. Abrir la lista clickeando justo debajo de la etiqueta (Language, Voice, Subtitles)
         let menuAbierto = false;
         for (const loc of labelLocators) {
           try {
@@ -478,7 +500,7 @@ export async function generarVideo(guion) {
           console.log(`[Veed] No se pudo encontrar la etiqueta para abrir ${targetName}. Se intentará buscar la opción directamente.`);
         }
 
-        // 2. Buscar y hacer clic en la opción dentro del menú abierto
+        // 3. Buscar y hacer clic en la opción dentro del menú abierto
         for (const textOpt of optionTexts) {
           try {
             // Estrategia 1: usando getByRole('option')
