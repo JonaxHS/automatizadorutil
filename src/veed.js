@@ -447,94 +447,86 @@ export async function generarVideo(guion) {
 
       await safeScreenshot(page, { path: 'screenshots/veed-5-solo-voz.png', fullPage: true });
 
-      // Seleccionar idioma español
-      console.log('Seleccionando idioma Spanish...');
-      const spanishSelectors = [
-        'text=/.*spanish.*/i',
-        'text=/.*español.*/i',
-        'option:has-text("Spanish")',
-        'button:has-text("Spanish")',
-        'div[role="option"]:has-text("Spanish")',
-        'select option:has-text("Spanish")',
-        '[value*="spanish"]',
-        '[value*="es"]'
-      ];
+      // --- Helper robusto para dropdowns (listas) de Veed ---
+      const seleccionarEnDropdown = async (page, targetName, triggers, options) => {
+        console.log(`Intentando seleccionar ${targetName} en lista...`);
 
-      for (const selector of spanishSelectors) {
-        try {
-          const spanishOption = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
-          if (spanishOption) {
-            await spanishOption.click();
-            console.log('Idioma Spanish seleccionado');
-            await page.waitForTimeout(1000);
-            break;
-          }
-        } catch (error) {
-          continue;
+        // 1. Probar todos los selectores de opcion por si están visibles de inmediato
+        for (const opt of options) {
+          try {
+            const el = await page.$(opt);
+            if (el && await el.isVisible()) {
+              await el.click();
+              console.log(`[Veed] ${targetName} seleccionado directamente`);
+              await page.waitForTimeout(1000);
+              return true;
+            }
+          } catch (e) { }
         }
-      }
 
+        // 2. Si no están visibles, intentar abrir el dropdown con los triggers (listboxes)
+        for (const trigger of triggers) {
+          try {
+            const els = await page.$$(trigger);
+            for (const el of els) {
+              if (await el.isVisible()) {
+                await el.click(); // Abrir lista
+                await page.waitForTimeout(1500); // Esperar animación de la lista desplegable
+
+                // Buscar la opción dentro del dropdown abierto
+                for (const opt of options) {
+                  try {
+                    const optionEls = await page.$$(opt);
+                    for (const optionEl of optionEls) {
+                      if (await optionEl.isVisible()) {
+                        await optionEl.click();
+                        console.log(`[Veed] ${targetName} seleccionado en dropdown abierto.`);
+                        await page.waitForTimeout(1000);
+                        return true;
+                      }
+                    }
+                  } catch (e) { }
+                }
+
+                // Si abrimos la lista pero no encontramos la opcion, la cerramos presionando ESC
+                await page.keyboard.press('Escape');
+                await page.waitForTimeout(500);
+              }
+            }
+          } catch (e) { }
+        }
+
+        console.log(`[Veed] Fallo al seleccionar ${targetName} en las listas.`);
+        return false;
+      };
+
+      // Seleccionar idioma español
+      await seleccionarEnDropdown(
+        page,
+        'Idioma Spanish',
+        ['text=/english/i', 'text=/language/i', 'text=/idioma/i', '[aria-haspopup="listbox"]'],
+        ['text=/.*spanish.*/i', 'text=/.*español.*/i', '[value*="spanish"]', 'option:has-text("Spanish")']
+      );
       await page.waitForTimeout(2000); // esperar que el idioma cargue las voces
       await safeScreenshot(page, { path: 'screenshots/veed-6-spanish.png', fullPage: true });
 
       // Seleccionar voz Alex o Carolina
-      console.log('Seleccionando voz (Alex o Carolina)...');
-      const voiceSelectors = [
-        'text=/.*carolina.*/i',
-        'text=/.*alex.*/i',
-        'button:has-text("Carolina")',
-        'button:has-text("Alex")',
-        'div[role="option"]:has-text("Carolina")',
-        'div[role="option"]:has-text("Alex")'
-      ];
-
-      let voiceSelected = false;
-      for (const selector of voiceSelectors) {
-        try {
-          const voiceButton = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
-          if (voiceButton) {
-            await voiceButton.click();
-            const voiceName = await voiceButton.innerText();
-            console.log(`Voz seleccionada: ${voiceName}`);
-            await page.waitForTimeout(1000);
-            voiceSelected = true;
-            break;
-          }
-        } catch (error) {
-          continue;
-        }
-      }
-
-      if (!voiceSelected) {
-        console.log('No se pudo seleccionar voz especifica, continuando...');
-      }
-
+      const voiceSelected = await seleccionarEnDropdown(
+        page,
+        'Voz Alex/Carolina',
+        ['text=/adam/i', 'text=/bella/i', 'text=/antoni/i', 'text=/arnold/i', 'text=/voice/i', 'text=/voz/i', '[aria-label*="voice"]'],
+        ['text=/.*carolina.*/i', 'text=/.*alex.*/i', 'div[role="option"]:has-text("Carolina")', 'div[role="option"]:has-text("Alex")']
+      );
+      if (!voiceSelected) console.log('No se pudo encontrar en la lista, continuando...');
       await safeScreenshot(page, { path: 'screenshots/veed-7-voz.png', fullPage: true });
 
       // Seleccionar subtítulos "boba"
-      console.log('Seleccionando subtitulos "boba"...');
-      const subtitulosSelectors = [
-        'text=/.*boba.*/i',
-        'button:has-text("boba")',
-        'button:has-text("Boba")',
-        'div[role="option"]:has-text("Boba")',
-        '[value*="boba"]'
-      ];
-
-      for (const selector of subtitulosSelectors) {
-        try {
-          const subtitulosButton = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
-          if (subtitulosButton) {
-            await subtitulosButton.click();
-            console.log('Subtitulos "boba" seleccionados');
-            await page.waitForTimeout(1000);
-            break;
-          }
-        } catch (error) {
-          continue;
-        }
-      }
-
+      await seleccionarEnDropdown(
+        page,
+        'Subtitulos Boba',
+        ['text=/standard/i', 'text=/basic/i', 'text=/subtitles/i', 'text=/estilo/i', '[aria-label*="subtitle"]'],
+        ['text=/.*boba.*/i', 'div[role="option"]:has-text("Boba")', '[value*="boba"]']
+      );
       await safeScreenshot(page, { path: 'screenshots/veed-8-subtitulos.png', fullPage: true });
 
       // Esperar el estado final de ajustes antes de presionar "Hecho"
