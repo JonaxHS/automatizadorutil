@@ -36,24 +36,13 @@ export async function subirReelAFacebook(localVideoPath, descripcion, onProgress
         const uploadSuccess = await uploadVideoContent(pageId, videoId, accessToken, localVideoPath);
         if (!uploadSuccess) throw new Error('Falló la transferencia binaria del video a Meta.');
 
-        // 3. Finalizar y publicar en formato DRAFT primero para revisión de copyright
-        onProgress('Transferecia completa. Configurando parámetros del Reel e iniciando revisión...');
-        await finishUploadAndPublish(pageId, videoId, accessToken, descripcion, 'DRAFT');
+        // 3. Finalizar y publicar directamente (sin esperar el lento chequeo de FB)
+        onProgress('Transferecia completa. Configurando parámetros del Reel e instruyendo a Meta para publicar...');
+        await finishUploadAndPublish(pageId, videoId, accessToken, descripcion, 'PUBLISHED');
 
-        // 4. Polling (Chequeo de estado y derechos de autor)
-        onProgress('El video ha sido recibido por Facebook. Esperando revisión de Copyright... (esto puede tomar un par de minutos)');
-        const passedCopyright = await poolCopyrightStatus(videoId, accessToken, onProgress);
+        onProgress('✅ ¡Video enviado exitosamente a Meta! El Reel aparecerá publicado en tu página en unos minutos en cuanto Facebook termine de procesarlo internamente.');
 
-        if (passedCopyright) {
-            onProgress('✅ ¡Revisión de Copyright pasada exitosamente! Publicando reel en el muro...');
-            // Le pedimos explícitamente a Facebook que si era DRAFT lo mude a PUBLISHED
-            await updateVideoStatus(videoId, accessToken, 'PUBLISHED');
-            onProgress('🎬 ¡Reel publicado correctamente en la página de Facebook!');
-            return true;
-        } else {
-            onProgress('❌ Precaución: El video NO superó la prueba limpia de Copyright o hubo demora. Se dejará como Borrador (DRAFT).');
-            return false;
-        }
+        return true;
 
     } catch (error) {
         onProgress(`❌ Error grave interactuando con Facebook API: ${error.message}`);
