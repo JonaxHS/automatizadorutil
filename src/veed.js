@@ -546,12 +546,37 @@ export async function generarVideo(guion) {
       await page.waitForTimeout(2000); // esperar que el idioma cargue las voces
       await safeScreenshot(page, { path: 'screenshots/veed-6-spanish.png', fullPage: true });
 
-      // Seleccionar voz Alex o Carolina
+      // Seleccionar voz Alex o Carolina (alternando si ya hay uno seleccionado)
+      const labelVoz = ['text=/^Voice$/i', 'text=/^Voz$/i'];
+      let targetOption = 'Carolina (female)';
+      let targetFallback = ['Carolina', 'Carolina (female)'];
+
+      // Leer qué voz está seleccionada actualmente y forzar la otra
+      try {
+        for (const loc of labelVoz) {
+          const els = await page.$$(loc);
+          for (const el of els) {
+            if (await el.isVisible()) {
+              const labelText = await page.evaluate(el => el.parentElement.innerText, el);
+              if (labelText && labelText.toLowerCase().includes('carolina')) {
+                targetOption = 'Alex (male)';
+                targetFallback = ['Alex', 'Alex (male)'];
+                console.log('[Veed] Voz actual es Carolina. Cambiando a Alex.');
+              } else if (labelText && labelText.toLowerCase().includes('alex')) {
+                targetOption = 'Carolina (female)';
+                targetFallback = ['Carolina', 'Carolina (female)'];
+                console.log('[Veed] Voz actual es Alex. Cambiando a Carolina.');
+              }
+            }
+          }
+        }
+      } catch (e) { }
+
       const voiceSelected = await seleccionarEnDropdown(
         page,
-        'Voz Carolina/Alex',
-        ['text=/^Voice$/i', 'text=/^Voz$/i'],
-        ['Carolina (female)', 'Alex (male)', 'Carolina', 'Alex']
+        `Voz ${targetOption}`,
+        labelVoz,
+        targetFallback
       );
       if (!voiceSelected) console.log('No se pudo encontrar en la lista, continuando...');
       await safeScreenshot(page, { path: 'screenshots/veed-7-voz.png', fullPage: true });
@@ -912,7 +937,24 @@ export async function generarVideo(guion) {
         // Esperamos hasta 2 minutos a que el botón se habilite (deje de estar "disabled")
         let btnHabilitado = false;
         let msEsperados = 0;
+        console.log('[Veed] Esperando que la URL cambie (quitando el ID intermedio) indicativo de que el video está listo y recargado...');
         while (msEsperados < 120000) {
+          const currentUrl = page.url();
+
+          // Revisar si Veed ya quitó de la URL el identificador extra que pone al renderizar.
+          // Original: https://www.veed.io/view/WORKSPACE_ID/VIDEO_ID?...
+          // Final: https://www.veed.io/view/WORKSPACE_ID?...
+          // Contar cuantos fragmentos separados por '/' hay después de 'veed.io/view'
+          try {
+            const urlObj = new URL(currentUrl);
+            const pathParts = urlObj.pathname.split('/').filter(p => p.length > 0);
+            // Si la ruta es solo ["view", "WORKSPACE_ID"] está listo.
+            // Si la ruta es ["view", "WORKSPACE_ID", "VIDEO_ID"] sigue procesando.
+            if (pathParts.length === 2 && pathParts[0] === 'view') {
+              console.log('[Veed] URL indica finalización de guardado.');
+            }
+          } catch (e) { }
+
           const isDisabled = await btnDescarga.evaluate(n => n.disabled);
           if (!isDisabled) {
             btnHabilitado = true;
