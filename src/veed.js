@@ -863,10 +863,18 @@ export async function generarVideo(guion) {
       }
 
       const downloadSelectors = [
+        // 1. Botón con texto exacto adentro (clásicos)
         'button:has-text("Download MP4")',
         'button:has-text("Descargar MP4")',
-        'button:has-text("Download")',
-        'button:has-text("Descargar")',
+        // 2. Localizadores que interceptan la caja visible de "Share this video" (icono descargar)
+        'button[title="Download"]',
+        'button[title="Descargar"]',
+        'button[aria-label="Download"]',
+        'button[aria-label="Descargar"]',
+        // 3. Icono SVG específico que tiene un atributo con "download" en alguna parte del padre
+        '.share-video-buttons button svg path[d*="M2 12v3"]', // aproximación al path de descarga
+        'text="Download"',
+        'text="Descargar"',
         'a[download]',
         '[aria-label*="download"]'
       ];
@@ -874,11 +882,27 @@ export async function generarVideo(guion) {
       let btnDescarga = null;
       for (const selector of downloadSelectors) {
         try {
-          btnDescarga = await page.waitForSelector(selector, { timeout: 3000, state: 'visible' });
-          if (btnDescarga) {
-            console.log(`Botón Descargar encontrado con selector: ${selector}`);
-            break;
+          // Si el selector busca explícitamente un texto genérico "Download",
+          // evitemos que haga clic en un tooltip flotante y le damos al botón
+          const els = await page.$$(selector);
+          for (const el of els) {
+            if (await el.isVisible()) {
+              // Buscamos el elemento button más cercano si es que clickeamos un span o svg
+              const isBtn = await el.evaluate(n => n.tagName === 'BUTTON' || n.tagName === 'A');
+              let targetEl = el;
+              if (!isBtn) {
+                const parentBtn = await el.evaluateHandle(n => n.closest('button, a'));
+                if (parentBtn && await parentBtn.isVisible()) {
+                  targetEl = parentBtn;
+                }
+              }
+
+              btnDescarga = targetEl;
+              console.log(`Botón Descargar encontrado con selector: ${selector}`);
+              break;
+            }
           }
+          if (btnDescarga) break;
         } catch (e) { }
       }
 
