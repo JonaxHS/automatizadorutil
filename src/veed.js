@@ -932,47 +932,109 @@ export async function generarVideo(guion) {
       }
 
       if (btnDescarga) {
-        console.log('Botón de descarga detectado. Esperando a que el botón esté habilitado (render out al 100%)...');
+        console.log('Botón de descarga inicial detectado. Esperando recarga de página (URL final) para habilitar descarga...');
 
-        // Esperamos hasta 2 minutos a que el botón se habilite (deje de estar "disabled")
-        let btnHabilitado = false;
+        // Esperamos hasta 2 minutos a que la recarga de Veed ocurra
+        let urlLista = false;
         let msEsperados = 0;
-        console.log('[Veed] Esperando que la URL cambie (quitando el ID intermedio) indicativo de que el video está listo y recargado...');
+        console.log('[Veed] Esperando que la URL cambie (quitando el ID intermedio) indicativo de que el video está listo...');
         while (msEsperados < 120000) {
           const currentUrl = page.url();
 
-          // Revisar si Veed ya quitó de la URL el identificador extra que pone al renderizar.
-          // Original: https://www.veed.io/view/WORKSPACE_ID/VIDEO_ID?...
-          // Final: https://www.veed.io/view/WORKSPACE_ID?...
-          // Contar cuantos fragmentos separados por '/' hay después de 'veed.io/view'
           try {
             const urlObj = new URL(currentUrl);
             const pathParts = urlObj.pathname.split('/').filter(p => p.length > 0);
+
             // Si la ruta es solo ["view", "WORKSPACE_ID"] está listo.
             // Si la ruta es ["view", "WORKSPACE_ID", "VIDEO_ID"] sigue procesando.
             if (pathParts.length === 2 && pathParts[0] === 'view') {
               console.log('[Veed] URL indica finalización de guardado.');
+              urlLista = true;
+              break;
             }
           } catch (e) { }
 
-          const isDisabled = await btnDescarga.evaluate(n => n.disabled);
-          if (!isDisabled) {
-            btnHabilitado = true;
-            break;
-          }
           await page.waitForTimeout(2000);
           msEsperados += 2000;
         }
 
-        if (!btnHabilitado) {
-          console.log('❌ El botón de descarga no se habilitó a tiempo.');
-          throw new Error("Timeout esperando boton de descarga habilitado");
+        if (!urlLista) {
+          console.log('❌ La URL nunca cambió al estado listo.');
+          throw new Error("Timeout esperando URL final de Veed");
         }
 
-        console.log('✅ Botón de descarga habilitado. Iniciando click en Playwright...');
-        // Empezar a esperar el evento de descarga ANTES de hacer click
+        console.log('✅ URL lista. Buscando botón de descarga actualizado...');
+
+        let btnDescargaActualizado = null;
+        for (let i = 0; i < 3; i++) { // Reintentar un par de veces si tarda un ms en pintar el dom
+          for (const selector of downloadSelectors) {
+            try {
+              const els = await page.$$(selector);
+              for (const el of els) {
+                if (await el.isVisible()) {
+                  const isBtn = await el.evaluate(n => n.tagName === 'BUTTON' || n.tagName === 'A');
+                  let targetEl = el;
+                  if (!isBtn) {
+                    const parentBtn = await el.evaluateHandle(n => n.closest('button, a'));
+                    if (parentBtn && await parentBtn.isVisible()) {
+                      targetEl = parentBtn;
+                    }
+                  }
+                  btnDescargaActualizado = targetEl;
+                  console.log(`Botón Descargar final encontrado con selector: ${selector}`);
+                  break;
+                }
+              }
+              if (btnDescargaActualizado) break;
+            } catch (e) { }
+          }
+          if (btnDescargaActualizado) break;
+          await page.waitForTimeout(2000);
+        }
+
+        if (!btnDescargaActualizado) {
+          console.log('❌ No se encontró el botón de descarga en la página final.');
+          throw new Error("Boton de descarga no encontrado tras renderizado completado");
+        }
+
+        console.log('✅ Botón de descarga final habilitado. Haciendo click para abrir menú de formatos...');
+        await btnDescargaActualizado.click();
+
+        // Esperar a que la animación del popover termine
+        await page.waitForTimeout(1500);
+        await safeScreenshot(page, { path: 'screenshots/veed-11-download-popover.png', fullPage: true });
+
+        // Buscar el botón MP4 de la nueva interfaz
+        const mp4Selectors = [
+          'button:has-text("MP4")',
+          'div[role="button"]:has-text("MP4")',
+          'text="MP4"'
+        ];
+
+        let btnMp4 = null;
+        for (const sel of mp4Selectors) {
+          try {
+            const el = await page.$(sel);
+            if (el && await el.isVisible()) {
+              btnMp4 = el;
+              console.log(`✅ Botón de formato MP4 encontrado con selector: ${sel}`);
+              break;
+            }
+          } catch (e) { }
+        }
+
+        console.log('Iniciando escucha de evento de descarga en Playwright...');
         const downloadPromise = page.waitForEvent('download', { timeout: 120000 });
-        await btnDescarga.click();
+
+        if (btnMp4) {
+          await btnMp4.click();
+          console.log('✅ Click en formato MP4 realizado.');
+        } else {
+          console.log('⚠️ No se encontró explícitamente el botón MP4 en el popover. Simulando click de respaldo...');
+          // Si por alguna razón la UI es la vieja y el primer click ya detonaba la descarga, 
+          // o si no encuentra el boton, volver a internar cliquear por si acaso.
+          await btnDescargaActualizado.click();
+        }
 
         const download = await downloadPromise;
 
