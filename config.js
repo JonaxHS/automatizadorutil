@@ -35,5 +35,11 @@ export const config = {
   },
 
   // Google Sheets — Series
-  googleSheetId: process.env.GOOGLE_SHEET_ID || '1CutBXAFfeu4UWZ0LOxl9p3lwN7D58TTftVVIMbjm6dk'
+  googleSheetId: process.env.GOOGLE_SHEET_ID || '1CutBXAFfeu4UWZ0LOxl9p3lwN7D58TTftVVIMbjm6dk',
+
+  // Facebook Graph API
+  facebook: {
+    pageId: process.env.FB_PAGE_ID || '',
+    accessToken: process.env.FB_ACCESS_TOKEN || ''
+  }
 }

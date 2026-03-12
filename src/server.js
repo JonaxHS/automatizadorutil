@@ -3,7 +3,6 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { generarGuion } from './qwen.js';
 import { generarVideo } from './veed.js';
 import {
@@ -12,6 +11,7 @@ import {
   getEstadoAutenticacion,
   iniciarSesionInteractivaWeb
 } from './auth.js';
+import { subirReelAFacebook } from './facebook.js';
 import { config } from '../config.js';
 import { iniciarBot } from './telegram.js';
 import { getEstadoSeries, getPromptSiguiente, marcarReelCompletado, reiniciarProgreso } from './series.js';
@@ -466,6 +466,26 @@ async function ejecutarAutomatizacion() {
     const localVideo = resultadoVeed.localUrl;
 
     emitirEstado('Video generado exitosamente', 90, 'success');
+
+    // Módulos posteriores: Subida a Facebook
+    if (localVideo && config.facebook.pageId && config.facebook.accessToken) {
+      try {
+        emitirEstado('Iniciando subida a Facebook Reels...', 95, 'info');
+        const rutaAbsolutaVideo = path.join(process.cwd(), 'public', localVideo);
+        // Fallback a tema si el guion no trajo descripción separada
+        const textoPost = descripcion || config.video.tema;
+
+        await subirReelAFacebook(rutaAbsolutaVideo, textoPost, (msg) => {
+          emitirEstado(`[FB] ${msg}`, 95, 'info');
+        });
+        emitirEstado('Proceso de publicación en Facebook terminado.', 98, 'success');
+      } catch (fbError) {
+        emitirEstado(`Error subiendo a Facebook: ${fbError.message}`, 95, 'error');
+        // No fallamos toda la automatización por culpa de Facebook
+      }
+    } else {
+      emitirEstado('Omitiendo subida a Facebook (Falta Configuración o MP4)', 95, 'info');
+    }
 
     estadoAutomatizacion.ultimoVideo = {
       url: urlVideo,
