@@ -148,14 +148,13 @@ async function finishUploadAndPublish(pageId, videoId, accessToken, descripcion,
 
 /**
  * Función repetitiva (Polling) que interroga por el Status del video a FB cada cierto tiempo
- * Esperando a que 'status.video_status' cambie a 'ready'
- * Y comprobando 'status.copyright_check_status'
+ * Extraído de la documentación oficial de Video Reels: fields=copyright_check_information
  */
 async function poolCopyrightStatus(videoId, accessToken, onProgress, maxRetries = 60) {
-    const url = `${BASE_URL}/${videoId}?fields=status&access_token=${accessToken}`;
+    const url = `${BASE_URL}/${videoId}?fields=copyright_check_information&access_token=${accessToken}`;
 
     for (let i = 0; i < maxRetries; i++) {
-        // Dormimos 15 segundos
+        // Dormimos 15 segundos entre cada consulta
         await new Promise(r => setTimeout(r, 15000));
 
         try {
@@ -167,43 +166,39 @@ async function poolCopyrightStatus(videoId, accessToken, onProgress, maxRetries 
                 continue;
             }
 
-            if (data.status) {
-                const phase = data.status.video_status;
-                const { status: copyStatus } = data.status.copyright_check_status || {};
-
-                const textLog = `[Status FB] Fase render: ${phase} | Copyright: ${copyStatus?.status || 'check_running'}`;
-                onProgress(textLog);
-
-                // Si el procesamiento del video falla gravemente
-                if (phase === 'error') {
-                    throw new Error('Facebook falló al procesar internamente el video.');
-                }
-
-                // Si el video ya está listo internamente para ser publicado pero esperamos el check...
-                if (phase === 'ready' || phase === 'published') {
-
-                    // Evaluamos la info del Copyright 
-                    if (copyStatus && copyStatus.status === 'check_passed') {
-                        return true; // Todo en verde!
-                    } else if (copyStatus && (copyStatus.status === 'check_failed' || copyStatus.status === 'matches_found')) {
-                        return false; // Alerta de copyright! Dejarlo en draft.
-                    }
-
-                    // Si el test de copyright aún está corriendo ("check_running"), esperamos la siguiente vuelta.
-                    // Si el objeto ni siquiera viene (casos raros), asumimos verde tras 15 intentos en 'ready'
-                    if (!copyStatus && i > 15) {
-                        onProgress('Facebook omitió metadatos del copyright tras mucho esperar. Asumiendo Safe.');
-                        return true;
-                    }
-                }
+            const copyInfo = data.copyright_check_information;
+            if (!copyInfo || !copyInfo.status) {
+                onProgress('[Status FB] Esperando a que Meta encole el chequeo de Copyright (metadata aún no disponible)...');
+                continue; // Los primeros segundos FB no devuelve el objeto
             }
+
+            const currentStatus = copyInfo.status.status; // 'in_progress' o 'complete'
+            const hasMatches = copyInfo.status.matches_found; // boolean
+
+            onProgress(`[Status FB] Estado del Copyright: ${currentStatus}`);
+
+            if (currentStatus === 'complete') {
+                if (hasMatches === true) {
+                    onProgress('❌ ¡Peligro! Meta detectó música o segmentos con Copyright. Dejando el video en Borradores (DRAFT).');
+                    return false;
+                } else {
+                    return true; // Terminado y sin coincidencias. ¡Listo para publicar!
+                }
+            } else if (currentStatus === 'error') {
+                // Si falla internamente el chequeo
+                onProgress('❌ Falló el motor de revisión de Meta ("error"). Por seguridad se dejará como DRAFT.');
+                return false;
+            }
+
+            // Si es 'in_progress', el for loop saltará a la siguiente vuelta tras 15 seg.
+
         } catch (err) {
             onProgress(`[Status checker loop err] ${err.message}`);
         }
     }
 
-    // Si pasamos todos los intentos y nunca respondió "check_passed"
-    onProgress('⏰ Se acabo el tiempo máximo esperando revisión de Meta. Se quedará en borradores.');
+    // Si pasamos todos los intentos y nunca respondió "complete"
+    onProgress('⏰ Se acabo el tiempo máximo esperando revisión de Meta (15 mins). Se quedará en borradores por seguridad.');
     return false;
 }
 
