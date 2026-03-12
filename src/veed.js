@@ -448,55 +448,69 @@ export async function generarVideo(guion) {
       await safeScreenshot(page, { path: 'screenshots/veed-5-solo-voz.png', fullPage: true });
 
       // --- Helper robusto para dropdowns (listas) de Veed ---
-      const seleccionarEnDropdown = async (page, targetName, triggers, options) => {
+      // --- Helper robusto para dropdowns (listas) de Veed ---
+      const seleccionarEnDropdown = async (page, targetName, labelLocators, optionTexts) => {
         console.log(`Intentando seleccionar ${targetName} en lista...`);
 
-        // 1. Probar todos los selectores de opcion por si están visibles de inmediato
-        for (const opt of options) {
+        // 1. Abrir la lista clickeando justo debajo de la etiqueta (Language, Voice, Subtitles)
+        let menuAbierto = false;
+        for (const loc of labelLocators) {
           try {
-            const el = await page.$(opt);
-            if (el && await el.isVisible()) {
-              await el.click();
-              console.log(`[Veed] ${targetName} seleccionado directamente`);
-              await page.waitForTimeout(1000);
-              return true;
-            }
-          } catch (e) { }
-        }
-
-        // 2. Si no están visibles, intentar abrir el dropdown con los triggers (listboxes)
-        for (const trigger of triggers) {
-          try {
-            const els = await page.$$(trigger);
+            const els = await page.$$(loc);
             for (const el of els) {
               if (await el.isVisible()) {
-                await el.click(); // Abrir lista
-                await page.waitForTimeout(1500); // Esperar animación de la lista desplegable
-
-                // Buscar la opción dentro del dropdown abierto
-                for (const opt of options) {
-                  try {
-                    const optionEls = await page.$$(opt);
-                    for (const optionEl of optionEls) {
-                      if (await optionEl.isVisible()) {
-                        await optionEl.click();
-                        console.log(`[Veed] ${targetName} seleccionado en dropdown abierto.`);
-                        await page.waitForTimeout(1000);
-                        return true;
-                      }
-                    }
-                  } catch (e) { }
+                const box = await el.boundingBox();
+                if (box && box.width > 0 && box.height > 0) {
+                  console.log(`[Veed] Clickeando el combobox debajo de la etiqueta "${loc}"...`);
+                  // Clic geométrico infalible: 20px bajo la caja del texto
+                  await page.mouse.click(box.x + 20, box.y + box.height + 20);
+                  await page.waitForTimeout(1500); // Esperar animación de la lista
+                  menuAbierto = true;
+                  break;
                 }
+              }
+            }
+          } catch (e) { }
+          if (menuAbierto) break;
+        }
 
-                // Si abrimos la lista pero no encontramos la opcion, la cerramos presionando ESC
+        if (!menuAbierto) {
+          console.log(`[Veed] No se pudo encontrar la etiqueta para abrir ${targetName}. Se intentará buscar la opción directamente.`);
+        }
+
+        // 2. Buscar y hacer clic en la opción dentro del menú abierto
+        for (const textOpt of optionTexts) {
+          try {
+            // Estrategia 1: usando getByRole('option')
+            const safeRegex = new RegExp(textOpt.replace(/[()]/g, '\\$&'), 'i');
+            const arrElements = await page.getByRole('option', { name: safeRegex }).all();
+            for (const el of arrElements) {
+              if (await el.isVisible()) {
+                await el.click();
+                console.log(`[Veed] ${targetName} seleccionado (getByRole).`);
+                await page.waitForTimeout(1000);
+                // Pulsar Escape para cerrar por si acaso
                 await page.keyboard.press('Escape');
-                await page.waitForTimeout(500);
+                return true;
+              }
+            }
+
+            // Estrategia 2: Selectores de texto genéricos pero buscando el que esté visible
+            const fallbacks = await page.$$(`text="${textOpt}"`);
+            for (const el of fallbacks) {
+              if (await el.isVisible()) {
+                await el.click();
+                console.log(`[Veed] ${targetName} seleccionado (text fallback).`);
+                await page.waitForTimeout(1000);
+                await page.keyboard.press('Escape');
+                return true;
               }
             }
           } catch (e) { }
         }
 
-        console.log(`[Veed] Fallo al seleccionar ${targetName} en las listas.`);
+        console.log(`[Veed] Fallo al encontrar la opción de ${targetName} en el dropdown.`);
+        await page.keyboard.press('Escape');
         return false;
       };
 
@@ -504,8 +518,8 @@ export async function generarVideo(guion) {
       await seleccionarEnDropdown(
         page,
         'Idioma Spanish',
-        ['text=/english/i', 'text=/language/i', 'text=/idioma/i', '[aria-haspopup="listbox"]'],
-        ['text="Spanish (Spain)"', 'text=/.*spanish \\(spain\\).*/i', 'text=/.*spanish.*/i', 'text=/.*español.*/i', '[value*="spanish"]', 'option:has-text("Spanish")']
+        ['text=/^LaNgUaGe$/i', 'text=/^Language$/i', 'text=/^Idioma$/i'],
+        ['Spanish (Spain)', 'Spanish', 'Español']
       );
       await page.waitForTimeout(2000); // esperar que el idioma cargue las voces
       await safeScreenshot(page, { path: 'screenshots/veed-6-spanish.png', fullPage: true });
@@ -513,19 +527,19 @@ export async function generarVideo(guion) {
       // Seleccionar voz Alex o Carolina
       const voiceSelected = await seleccionarEnDropdown(
         page,
-        'Voz Alex/Carolina',
-        ['text=/adam/i', 'text=/bella/i', 'text=/antoni/i', 'text=/arnold/i', 'text=/voice/i', 'text=/voz/i', '[aria-label*="voice"]'],
-        ['text="Carolina (female)"', 'text="Alex (male)"', 'text=/.*carolina \\(female\\).*/i', 'text=/.*alex \\(male\\).*/i', 'text=/.*carolina.*/i', 'text=/.*alex.*/i', 'div[role="option"]:has-text("Carolina")', 'div[role="option"]:has-text("Alex")']
+        'Voz Carolina/Alex',
+        ['text=/^Voice$/i', 'text=/^Voz$/i'],
+        ['Carolina (female)', 'Alex (male)', 'Carolina', 'Alex']
       );
       if (!voiceSelected) console.log('No se pudo encontrar en la lista, continuando...');
       await safeScreenshot(page, { path: 'screenshots/veed-7-voz.png', fullPage: true });
 
-      // Seleccionar subtítulos "boba"
+      // Seleccionar subtítulos "Boba" o "Slay"
       await seleccionarEnDropdown(
         page,
-        'Subtitulos Boba',
-        ['text=/standard/i', 'text=/basic/i', 'text=/subtitles/i', 'text=/estilo/i', '[aria-label*="subtitle"]'],
-        ['text=/.*boba.*/i', 'div[role="option"]:has-text("Boba")', '[value*="boba"]']
+        'Subtitulos Boba/Slay',
+        ['text=/^Subtitles$/i', 'text=/^Subtítulos$/i'],
+        ['Boba', 'Slay']
       );
       await safeScreenshot(page, { path: 'screenshots/veed-8-subtitulos.png', fullPage: true });
 
