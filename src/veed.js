@@ -556,12 +556,12 @@ export async function generarVideo(guion) {
       if (!voiceSelected) console.log('No se pudo encontrar en la lista, continuando...');
       await safeScreenshot(page, { path: 'screenshots/veed-7-voz.png', fullPage: true });
 
-      // Seleccionar subtítulos "Boba" o "Slay"
+      // Seleccionar subtítulos "Boba" únicamente
       await seleccionarEnDropdown(
         page,
-        'Subtitulos Boba/Slay',
+        'Subtitulos Boba',
         ['text=/^Subtitles$/i', 'text=/^Subtítulos$/i'],
-        ['Boba', 'Slay']
+        ['Boba']
       );
       await safeScreenshot(page, { path: 'screenshots/veed-8-subtitulos.png', fullPage: true });
 
@@ -584,7 +584,7 @@ export async function generarVideo(guion) {
 
           const tieneIdioma = /spanish|español/.test(texto);
           const tieneVoz = /alex|carolina/.test(texto);
-          const tieneSubtitulos = /boba|slay/.test(texto);
+          const tieneSubtitulos = /boba/.test(texto);
 
           // Además validar que el botón Hecho exista y esté habilitado.
           const botonHechoVisible = await page.$(
@@ -907,7 +907,27 @@ export async function generarVideo(guion) {
       }
 
       if (btnDescarga) {
-        console.log('Iniciando descarga en Playwright...');
+        console.log('Botón de descarga detectado. Esperando a que el botón esté habilitado (render out al 100%)...');
+
+        // Esperamos hasta 2 minutos a que el botón se habilite (deje de estar "disabled")
+        let btnHabilitado = false;
+        let msEsperados = 0;
+        while (msEsperados < 120000) {
+          const isDisabled = await btnDescarga.evaluate(n => n.disabled);
+          if (!isDisabled) {
+            btnHabilitado = true;
+            break;
+          }
+          await page.waitForTimeout(2000);
+          msEsperados += 2000;
+        }
+
+        if (!btnHabilitado) {
+          console.log('❌ El botón de descarga no se habilitó a tiempo.');
+          throw new Error("Timeout esperando boton de descarga habilitado");
+        }
+
+        console.log('✅ Botón de descarga habilitado. Iniciando click en Playwright...');
         // Empezar a esperar el evento de descarga ANTES de hacer click
         const downloadPromise = page.waitForEvent('download', { timeout: 120000 });
         await btnDescarga.click();
