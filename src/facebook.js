@@ -151,12 +151,12 @@ async function finishUploadAndPublish(pageId, videoId, accessToken, descripcion,
  * Esperando a que 'status.video_status' cambie a 'ready'
  * Y comprobando 'status.copyright_check_status'
  */
-async function poolCopyrightStatus(videoId, accessToken, onProgress, maxRetries = 30) {
+async function poolCopyrightStatus(videoId, accessToken, onProgress, maxRetries = 60) {
     const url = `${BASE_URL}/${videoId}?fields=status&access_token=${accessToken}`;
 
     for (let i = 0; i < maxRetries; i++) {
-        // Dormimos 10 segundos
-        await new Promise(r => setTimeout(r, 10000));
+        // Dormimos 15 segundos
+        await new Promise(r => setTimeout(r, 15000));
 
         try {
             const res = await fetch(url);
@@ -190,8 +190,8 @@ async function poolCopyrightStatus(videoId, accessToken, onProgress, maxRetries 
                     }
 
                     // Si el test de copyright aún está corriendo ("check_running"), esperamos la siguiente vuelta.
-                    // Si el objeto ni siquiera viene (casos raros), asumimos verde tras 3 intentos en 'ready'
-                    if (!copyStatus && i > 5) {
+                    // Si el objeto ni siquiera viene (casos raros), asumimos verde tras 15 intentos en 'ready'
+                    if (!copyStatus && i > 15) {
                         onProgress('Facebook omitió metadatos del copyright tras mucho esperar. Asumiendo Safe.');
                         return true;
                     }
@@ -203,7 +203,7 @@ async function poolCopyrightStatus(videoId, accessToken, onProgress, maxRetries 
     }
 
     // Si pasamos todos los intentos y nunca respondió "check_passed"
-    onProgress('⏰ Se acabo el tiempo máximo perando revisión de Meta. Se quedará en borradores.');
+    onProgress('⏰ Se acabo el tiempo máximo esperando revisión de Meta. Se quedará en borradores.');
     return false;
 }
 
