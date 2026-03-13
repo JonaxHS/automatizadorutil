@@ -204,18 +204,21 @@ async function poolCopyrightStatus(videoId, accessToken, onProgress, maxRetries 
 
 /**
  * PASO ADICIONAL: Muda un video publicado desde Draft a otro Status (como 'PUBLISHED')
- * Para Reels, enviar la descripción aquí de nuevo asegura que Meta no la pierda al sacarlo de Borradores.
- * Importante: Debe hacerse sobre /page_id/video_reels repitiendo 'finish' o lo pasa a post normal sin texto.
+ * Una vez el video ya existe como DRAFT (y la sesión de upload cerró), interactuamos con el Video ID.
  */
 async function updateVideoStatus(pageId, videoId, accessToken, newStatus = 'PUBLISHED', descripcion = '') {
-    const url = `${BASE_URL}/${pageId}/video_reels`;
-    const body = new URLSearchParams({
+    const url = `${BASE_URL}/${videoId}`;
+    
+    const params = {
         access_token: accessToken,
-        video_id: videoId,
-        upload_phase: 'finish',
-        video_state: newStatus,
-        description: descripcion // Re-enviar descripción para evitar que FB la borre
-    });
+        description: descripcion
+    };
+
+    if (newStatus === 'PUBLISHED') {
+        params.published = 'true';
+    }
+
+    const body = new URLSearchParams(params);
 
     const res = await fetch(url, {
         method: 'POST',
