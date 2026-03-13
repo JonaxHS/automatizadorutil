@@ -935,6 +935,11 @@ async function cargarVideos() {
                     <a href="${video.url}" download class="btn btn-small btn-primary" style="margin-left:8px;" title="Descargar Veed">⬇️ MP4</a>
                     <button class="btn btn-small btn-danger video-delete-btn" style="margin-left:8px;" title="Eliminar Video">🗑️</button>
                 </div>
+                <!-- Mostrar descripción guardada -->
+                <div class="video-description-preview" style="background: var(--bg-card-hover); padding: 8px; border-radius: 6px; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px; border: 1px dashed var(--border);">
+                    <strong>Descripción:</strong><br>
+                    ${video.descripcion || '<em style="color:var(--text-muted)">Sin descripción guardada</em>'}
+                </div>
                 <div class="video-preview-block" style="width: 100%;">
                     <video src="${video.url}" controls style="width: 100%; border-radius: 8px; background: #000; max-height: 250px;"></video>
                 </div>
