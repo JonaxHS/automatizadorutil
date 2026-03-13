@@ -207,30 +207,42 @@ async function poolCopyrightStatus(videoId, accessToken, onProgress, maxRetries 
  * Una vez el video ya existe como DRAFT (y la sesión de upload cerró), interactuamos con el Video ID.
  */
 async function updateVideoStatus(pageId, videoId, accessToken, newStatus = 'PUBLISHED', descripcion = '') {
-    // Solicitamos solo el ID en la respuesta para evitar el error "Please reduce the amount of data"
-    // Usamos Header para autenticación y limpiamos la URL para asegurar que 'fields' sea respetado
-    const url = new URL(`${BASE_URL}/${videoId}`);
-    url.searchParams.append('fields', 'id');
-    
-    const params = {};
-    // Nota: La descripción ya se envió en 'finishUploadAndPublish', no la reenviamos para evitar sobrecarga en la respuesta
+    // PASO ADICIONAL: Cambia el estado del Reel de DRAFT a PUBLISHED.
+    const url = `${BASE_URL}/${videoId}`;
 
-    if (newStatus === 'PUBLISHED') {
-        params.published = 'true';
-    }
+    // Para Reels, la forma más limpia de publicar un DRAFT es enviando video_state=PUBLISHED.
+    const params = new URLSearchParams({
+        access_token: accessToken,
+        video_state: newStatus // Aquí pasamos 'PUBLISHED'
+    });
 
-    const body = new URLSearchParams(params);
-
-    const res = await fetch(url.toString(), {
+    const res = await fetch(url, {
         method: 'POST',
-        body: body.toString(),
+        body: params.toString(),
         headers: {
-            'Authorization': `OAuth ${accessToken}`,
             'Content-Type': 'application/x-www-form-urlencoded'
         }
     });
 
     const data = await res.json();
-    if (data.error) throw new Error(`[Update Status] ${data.error.message}`);
+
+    if (data.error) {
+        // Si el error persiste, intentamos el método alternativo de 'published=true' pero sin pedir ningún campo de vuelta (fields=id)
+        if (data.error.message.includes("reduce the amount of data")) {
+            const fallbackParams = new URLSearchParams({
+                access_token: accessToken,
+                published: 'true',
+                fields: 'id' // Forzamos a que solo devuelva el ID y nada más
+            });
+            const fallbackRes = await fetch(url, {
+                method: 'POST',
+                body: fallbackParams.toString()
+            });
+            const fallbackData = await fallbackRes.json();
+            if (fallbackData.error) throw new Error(`[Update Status Fallback] ${fallbackData.error.message}`);
+            return true;
+        }
+        throw new Error(`[Update Status] ${data.error.message}`);
+    }
     return true;
 }
