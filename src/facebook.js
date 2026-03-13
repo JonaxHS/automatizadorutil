@@ -46,8 +46,8 @@ export async function subirReelAFacebook(localVideoPath, descripcion, onProgress
 
         if (passedCopyright) {
             onProgress('✅ ¡Revisión de Copyright pasada exitosamente! Publicando reel en el muro de tu página...');
-            // Le pedimos explícitamente a Facebook que si era DRAFT lo mude a PUBLISHED
-            await updateVideoStatus(videoId, accessToken, 'PUBLISHED');
+            // Le pedimos explícitamente a Facebook que si era DRAFT lo mude a PUBLISHED y le reinyectamos la descripción
+            await updateVideoStatus(pageId, videoId, accessToken, 'PUBLISHED', descripcion);
             onProgress('🎬 ¡Reel publicado correctamente en la página de Facebook!');
             return true;
         } else {
@@ -204,12 +204,17 @@ async function poolCopyrightStatus(videoId, accessToken, onProgress, maxRetries 
 
 /**
  * PASO ADICIONAL: Muda un video publicado desde Draft a otro Status (como 'PUBLISHED')
+ * Para Reels, enviar la descripción aquí de nuevo asegura que Meta no la pierda al sacarlo de Borradores.
+ * Importante: Debe hacerse sobre /page_id/video_reels repitiendo 'finish' o lo pasa a post normal sin texto.
  */
-async function updateVideoStatus(videoId, accessToken, newStatus = 'PUBLISHED') {
-    const url = `${BASE_URL}/${videoId}`;
+async function updateVideoStatus(pageId, videoId, accessToken, newStatus = 'PUBLISHED', descripcion = '') {
+    const url = `${BASE_URL}/${pageId}/video_reels`;
     const body = new URLSearchParams({
         access_token: accessToken,
-        video_state: newStatus
+        video_id: videoId,
+        upload_phase: 'finish',
+        video_state: newStatus,
+        description: descripcion // Re-enviar descripción para evitar que FB la borre
     });
 
     const res = await fetch(url, {
