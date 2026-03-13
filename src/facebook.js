@@ -211,9 +211,12 @@ async function updateVideoStatus(pageId, videoId, accessToken, newStatus = 'PUBL
     const url = `${BASE_URL}/${videoId}`;
 
     // Para Reels, la forma más limpia de publicar un DRAFT es enviando video_state=PUBLISHED.
+    // También enviamos 'published=true' y la descripción para asegurar que se procese correctamente.
     const params = new URLSearchParams({
         access_token: accessToken,
-        video_state: newStatus // Aquí pasamos 'PUBLISHED'
+        video_state: newStatus, // 'PUBLISHED'
+        description: descripcion,
+        published: 'true'
     });
 
     const res = await fetch(url, {
@@ -227,12 +230,13 @@ async function updateVideoStatus(pageId, videoId, accessToken, newStatus = 'PUBL
     const data = await res.json();
 
     if (data.error) {
-        // Si el error persiste, intentamos el método alternativo de 'published=true' pero sin pedir ningún campo de vuelta (fields=id)
-        if (data.error.message.includes("reduce the amount of data")) {
+        // Si el error persiste (ej: mensaje de "reduce the amount of data"), intentamos el modo ultra-minimalista.
+        if (data.error.message.includes("reduce the amount of data") || data.error.code === 1) {
             const fallbackParams = new URLSearchParams({
                 access_token: accessToken,
                 published: 'true',
-                fields: 'id' // Forzamos a que solo devuelva el ID y nada más
+                video_state: 'PUBLISHED',
+                fields: 'id'
             });
             const fallbackRes = await fetch(url, {
                 method: 'POST',
