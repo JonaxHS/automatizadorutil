@@ -47,7 +47,7 @@ export async function subirReelAFacebook(localVideoPath, descripcion, onProgress
         if (passedCopyright) {
             onProgress('✅ ¡Revisión de Copyright pasada exitosamente! Publicando reel en el muro de tu página...');
             // Le pedimos explícitamente a Facebook que si era DRAFT lo mude a PUBLISHED y le reinyectamos la descripción
-            await updateVideoStatus(pageId, videoId, accessToken, 'PUBLISHED', descripcion);
+            await updateVideoStatus(pageId, videoId, accessToken, 'PUBLISHED', descripcion, onProgress);
             onProgress('🎬 ¡Reel publicado correctamente en la página de Facebook!');
             return true;
         } else {
@@ -206,47 +206,56 @@ async function poolCopyrightStatus(videoId, accessToken, onProgress, maxRetries 
  * PASO ADICIONAL: Muda un video publicado desde Draft a otro Status (como 'PUBLISHED')
  * Una vez el video ya existe como DRAFT (y la sesión de upload cerró), interactuamos con el Video ID.
  */
-async function updateVideoStatus(pageId, videoId, accessToken, newStatus = 'PUBLISHED', descripcion = '') {
+async function updateVideoStatus(pageId, videoId, accessToken, newStatus = 'PUBLISHED', descripcion = '', onProgress = console.log) {
     // PASO ADICIONAL: Cambia el estado del Reel de DRAFT a PUBLISHED.
     const url = `${BASE_URL}/${videoId}`;
 
-    // Para Reels, la forma más limpia de publicar un DRAFT es enviando video_state=PUBLISHED.
-    // También enviamos 'published=true' y la descripción para asegurar que se procese correctamente.
+    // Paso A: Intentar con los parámetros recomendados para Reels
     const params = new URLSearchParams({
         access_token: accessToken,
-        video_state: newStatus, // 'PUBLISHED'
+        video_state: newStatus,
         description: descripcion,
         published: 'true'
     });
 
-    const res = await fetch(url, {
-        method: 'POST',
-        body: params.toString(),
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        }
-    });
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            body: params.toString(),
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        });
 
-    const data = await res.json();
+        const data = await res.json();
 
-    if (data.error) {
-        // Si el error persiste (ej: mensaje de "reduce the amount of data"), intentamos el modo ultra-minimalista.
-        if (data.error.message.includes("reduce the amount of data") || data.error.code === 1) {
+        if (data.error) {
+            onProgress(`[Update Status] Intento 1 falló: ${data.error.message} (Código: ${data.error.code}). Probando fallback...`);
+
+            // Paso B: Fallback ultra-minimalista (a veces el API rechaza enviar muchos campos a la vez al publicar)
             const fallbackParams = new URLSearchParams({
                 access_token: accessToken,
                 published: 'true',
-                video_state: 'PUBLISHED',
                 fields: 'id'
             });
+
             const fallbackRes = await fetch(url, {
                 method: 'POST',
-                body: fallbackParams.toString()
+                body: fallbackParams.toString(),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
             });
+
             const fallbackData = await fallbackRes.json();
-            if (fallbackData.error) throw new Error(`[Update Status Fallback] ${fallbackData.error.message}`);
+            if (fallbackData.error) {
+                throw new Error(`[Update Status Fallback Error] ${fallbackData.error.message} (Código: ${fallbackData.error.code})`);
+            }
             return true;
         }
-        throw new Error(`[Update Status] ${data.error.message}`);
+        return true;
+    } catch (error) {
+        onProgress(`[Update Status Exception] ${error.message}`);
+        throw error;
     }
-    return true;
 }
