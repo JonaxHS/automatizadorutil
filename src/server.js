@@ -315,6 +315,9 @@ app.post('/api/test-qwen', async (req, res) => {
     const rutaGuion = path.join('guiones', nombreArchivo);
     fs.writeFileSync(rutaGuion, guion, 'utf-8');
 
+    // Persistir descripción del guion en un JSON
+    fs.writeFileSync(rutaGuion.replace('.txt', '.json'), JSON.stringify({ descripcion }, null, 2), 'utf-8');
+
     estadoAutomatizacion.ultimoGuion = {
       archivo: nombreArchivo,
       contenido: guion,
@@ -461,6 +464,8 @@ async function ejecutarAutomatizacion() {
     const rutaGuion = path.join('guiones', nombreArchivo);
 
     fs.writeFileSync(rutaGuion, guion, 'utf-8');
+    // Persistir descripción del guion en un JSON
+    fs.writeFileSync(rutaGuion.replace('.txt', '.json'), JSON.stringify({ descripcion }, null, 2), 'utf-8');
 
     estadoAutomatizacion.ultimoGuion = {
       archivo: nombreArchivo,
@@ -574,10 +579,20 @@ app.get('/api/guiones', (req, res) => {
     .filter(f => f.endsWith('.txt'))
     .map(f => {
       const stats = fs.statSync(path.join(guionesDir, f));
+      const rutaJson = path.join(guionesDir, f.replace('.txt', '.json'));
+      let descripcion = '';
+
+      if (fs.existsSync(rutaJson)) {
+        try {
+          descripcion = JSON.parse(fs.readFileSync(rutaJson, 'utf-8')).descripcion || '';
+        } catch (e) { }
+      }
+
       return {
-        nombre: f,
-        fecha: stats.mtime,
-        tamano: stats.size
+        archivo: f,
+        contenido: fs.readFileSync(path.join(guionesDir, f), 'utf-8'),
+        descripcion,
+        fecha: stats.mtime
       };
     })
     .sort((a, b) => b.fecha - a.fecha);
