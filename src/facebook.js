@@ -208,14 +208,12 @@ async function poolCopyrightStatus(videoId, accessToken, onProgress, maxRetries 
  */
 async function updateVideoStatus(pageId, videoId, accessToken, newStatus = 'PUBLISHED', descripcion = '') {
     // Solicitamos solo el ID en la respuesta para evitar el error "Please reduce the amount of data"
-    // Movemos access_token a la URL para asegurar que 'fields' sea respetado y no ignorado
+    // Usamos Header para autenticación y limpiamos la URL para asegurar que 'fields' sea respetado
     const url = new URL(`${BASE_URL}/${videoId}`);
-    url.searchParams.append('access_token', accessToken);
     url.searchParams.append('fields', 'id');
     
-    const params = {
-        description: descripcion
-    };
+    const params = {};
+    // Nota: La descripción ya se envió en 'finishUploadAndPublish', no la reenviamos para evitar sobrecarga en la respuesta
 
     if (newStatus === 'PUBLISHED') {
         params.published = 'true';
@@ -227,6 +225,7 @@ async function updateVideoStatus(pageId, videoId, accessToken, newStatus = 'PUBL
         method: 'POST',
         body: body.toString(),
         headers: {
+            'Authorization': `OAuth ${accessToken}`,
             'Content-Type': 'application/x-www-form-urlencoded'
         }
     });
