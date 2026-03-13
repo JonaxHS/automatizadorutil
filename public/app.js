@@ -311,7 +311,10 @@ btnEnviarVeed?.addEventListener('click', async () => {
         const response = await fetch('/api/test-veed', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ guion: estadoActual.guionActual })
+            body: JSON.stringify({
+                guion: estadoActual.guionActual,
+                descripcion: estadoActual.descripcionActual
+            })
         });
 
         const result = await response.json();
@@ -624,8 +627,9 @@ btnTestQwen.addEventListener('click', async () => {
             guionPreview.textContent = result.guion || 'Sin guion detectado';
             descripcionPreview.textContent = result.descripcion || 'Sin descripción detectada';
 
-            // Guardar guion para enviarlo a Veed después
+            // Guardar guion y descripción para enviarlos a Veed después
             estadoActual.guionActual = result.guion;
+            estadoActual.descripcionActual = result.descripcion;
             btnEnviarVeed.style.display = 'inline-block';
 
             cargarGuiones();
@@ -1052,7 +1056,10 @@ async function verGuion(nombre) {
                 const response = await fetch('/api/test-veed', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ guion: data.contenido })
+                    body: JSON.stringify({
+                        guion: data.contenido,
+                        descripcion: data.descripcion
+                    })
                 });
 
                 const result = await response.json();

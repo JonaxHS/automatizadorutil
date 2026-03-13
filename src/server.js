@@ -348,7 +348,7 @@ app.post('/api/test-veed', async (req, res) => {
     return res.status(400).json({ error: 'Ya hay una operación en ejecución' });
   }
 
-  const { guion } = req.body;
+  const { guion, descripcion } = req.body;
   if (!guion) {
     return res.status(400).json({ error: 'El guion es requerido' });
   }
@@ -364,6 +364,18 @@ app.post('/api/test-veed', async (req, res) => {
     const localVideo = resultadoVeed.localUrl;
 
     emitirEstado('Video generado exitosamente en Veed.io', 100, 'success');
+
+    // Guardar metadatos incluso en test manual
+    if (localVideo) {
+      const nombreBase = path.basename(localVideo, '.mp4');
+      const rutaJson = path.join(process.cwd(), 'public', 'videos', `${nombreBase}.json`);
+      fs.writeFileSync(rutaJson, JSON.stringify({
+        nombre: path.basename(localVideo),
+        descripcion: descripcion || config.video.tema,
+        fecha: new Date().toISOString()
+      }, null, 2), 'utf-8');
+      console.log(`[Test Veed] Metadatos guardados en ${rutaJson}`);
+    }
 
     estadoAutomatizacion.ultimoVideo = {
       url: urlVideo,
