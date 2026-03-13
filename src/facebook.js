@@ -207,7 +207,8 @@ async function poolCopyrightStatus(videoId, accessToken, onProgress, maxRetries 
  * Una vez el video ya existe como DRAFT (y la sesión de upload cerró), interactuamos con el Video ID.
  */
 async function updateVideoStatus(pageId, videoId, accessToken, newStatus = 'PUBLISHED', descripcion = '') {
-    const url = `${BASE_URL}/${videoId}`;
+    // Solicitamos solo el ID en la respuesta para evitar el error "Please reduce the amount of data"
+    const url = `${BASE_URL}/${videoId}?fields=id`;
     
     const params = {
         access_token: accessToken,
