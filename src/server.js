@@ -432,27 +432,38 @@ app.post('/api/iniciar', async (req, res) => {
 
 // Función principal de automatización
 async function ejecutarAutomatizacion() {
+  await ejecutarProcesoCompleto({ tema: config.video.tema, esProgramado: false });
+}
+
+/**
+ * Función unificada para ejecutar el proceso completo (Manual y Programado)
+ */
+async function ejecutarProcesoCompleto({ tema, esProgramado = false }) {
+  if (estadoAutomatizacion.ejecutando) {
+    console.log(`[Flow] ⚠️ Intento de ejecución ${esProgramado ? 'programada' : 'manual'} ignorado: ya hay una tarea en curso.`);
+    return;
+  }
+
   estadoAutomatizacion.ejecutando = true;
   estadoAutomatizacion.ultimoError = null;
-
   const ejecucionId = Date.now();
 
   try {
-    emitirEstado('Iniciando automatización...', 0, 'info');
-    guardarLog('inicio', 'Automatización iniciada', { tema: config.video.tema });
+    const prefijo = esProgramado ? '[Scheduler]' : '[Manual]';
+    emitirEstado(`Iniciando automatización ${esProgramado ? 'programada' : 'manual'}...`, 0, 'info');
+    guardarLog('inicio', `Automatización iniciada (${prefijo})`, { tema });
 
     // Crear carpetas necesarias
-    const carpetas = ['screenshots', 'guiones', 'videos', 'logs'];
+    const carpetas = ['screenshots', 'guiones', 'public/videos', 'logs', 'sesiones'];
     for (const carpeta of carpetas) {
       if (!fs.existsSync(carpeta)) {
         fs.mkdirSync(carpeta, { recursive: true });
       }
     }
 
-    emitirEstado('Generando guion con Qwen AI...', 10, 'info');
-
     // PASO 1: Generar guion
-    const resultadoQwen = await generarGuion(config.video.tema);
+    emitirEstado('Generando guion con Qwen AI...', 10, 'info');
+    const resultadoQwen = await generarGuion(tema);
     const guion = typeof resultadoQwen === 'string' ? resultadoQwen : resultadoQwen.guion;
     const descripcion = typeof resultadoQwen === 'string' ? '' : resultadoQwen.descripcion;
 
@@ -464,7 +475,6 @@ async function ejecutarAutomatizacion() {
     const rutaGuion = path.join('guiones', nombreArchivo);
 
     fs.writeFileSync(rutaGuion, guion, 'utf-8');
-    // Persistir descripción del guion en un JSON
     fs.writeFileSync(rutaGuion.replace('.txt', '.json'), JSON.stringify({ descripcion }, null, 2), 'utf-8');
 
     estadoAutomatizacion.ultimoGuion = {
@@ -476,9 +486,8 @@ async function ejecutarAutomatizacion() {
 
     guardarLog('guion', 'Guion generado', { archivo: nombreArchivo, longitud: guion.length });
 
-    emitirEstado('Iniciando generación de video en Veed.io...', 50, 'info');
-
     // PASO 2: Generar video
+    emitirEstado('Iniciando generación de video en Veed.io...', 50, 'info');
     const resultadoVeed = await generarVideo(guion);
     const urlVideo = resultadoVeed.url;
     const localVideo = resultadoVeed.localUrl;
@@ -486,24 +495,23 @@ async function ejecutarAutomatizacion() {
     emitirEstado('Video generado exitosamente', 90, 'success');
 
     // Escribir JSON con metadatos del video 
-    // Para conservar la descripción de Qwen y poder publicarlo en FB luego
     if (localVideo) {
       const nombreBase = path.basename(localVideo, '.mp4');
       const rutaJson = path.join(process.cwd(), 'public', 'videos', `${nombreBase}.json`);
       fs.writeFileSync(rutaJson, JSON.stringify({
         nombre: path.basename(localVideo),
-        descripcion: descripcion || config.video.tema,
+        descripcion: descripcion || tema,
         fecha: new Date().toISOString()
       }, null, 2), 'utf-8');
+      console.log(`[Flow] Metadatos del video guardados en: ${rutaJson}`);
     }
 
-    // Módulos posteriores: Subida a Facebook
+    // PASO 3: Subida a Facebook
     if (localVideo && config.facebook.pageId && config.facebook.accessToken) {
       try {
         emitirEstado('Iniciando subida a Facebook Reels...', 95, 'info');
         const rutaAbsolutaVideo = path.join(process.cwd(), 'public', localVideo);
-        // Fallback a tema si el guion no trajo descripción separada
-        const textoPost = descripcion || config.video.tema;
+        const textoPost = descripcion || tema;
 
         await subirReelAFacebook(rutaAbsolutaVideo, textoPost, (msg) => {
           emitirEstado(`[FB] ${msg}`, 95, 'info');
@@ -511,7 +519,6 @@ async function ejecutarAutomatizacion() {
         emitirEstado('Proceso de publicación en Facebook terminado.', 98, 'success');
       } catch (fbError) {
         emitirEstado(`Error subiendo a Facebook: ${fbError.message}`, 95, 'error');
-        // No fallamos toda la automatización por culpa de Facebook
       }
     } else {
       emitirEstado('Omitiendo subida a Facebook (Falta Configuración o MP4)', 95, 'info');
@@ -525,17 +532,27 @@ async function ejecutarAutomatizacion() {
 
     guardarLog('video', 'Video generado', { url: urlVideo, localUrl: localVideo });
 
+    // PASO 4: Avanzar Serie si es programado
+    if (esProgramado) {
+      try {
+        const { marcarReelCompletado } = await import('./series.js');
+        await marcarReelCompletado();
+        console.log('[Scheduler] ✅ Reel programado completado y serie avanzada automáticamente.');
+      } catch (serieErr) {
+        console.error('[Scheduler] Error al avanzar serie:', serieErr);
+      }
+    }
+
     // Agregar al historial
     estadoAutomatizacion.historial.unshift({
       id: ejecucionId,
       fecha: new Date().toISOString(),
-      tema: config.video.tema,
+      tema: tema,
       guion: nombreArchivo,
       video: urlVideo,
       exito: true
     });
 
-    // Mantener solo los últimos 50
     if (estadoAutomatizacion.historial.length > 50) {
       estadoAutomatizacion.historial = estadoAutomatizacion.historial.slice(0, 50);
     }
@@ -544,8 +561,7 @@ async function ejecutarAutomatizacion() {
     guardarLog('completado', 'Automatización completada', { id: ejecucionId });
 
   } catch (error) {
-    console.error('Error en automatización:', error);
-
+    console.error('[Flow] Error en automatización:', error);
     estadoAutomatizacion.ultimoError = {
       mensaje: error.message,
       fecha: new Date().toISOString()
@@ -554,7 +570,7 @@ async function ejecutarAutomatizacion() {
     estadoAutomatizacion.historial.unshift({
       id: ejecucionId,
       fecha: new Date().toISOString(),
-      tema: config.video.tema,
+      tema: tema,
       error: error.message,
       exito: false
     });
@@ -797,63 +813,26 @@ app.post('/api/schedule', (req, res) => {
 // Inicializar el programador (Cron-like)
 initScheduler(async () => {
   // Lógica de disparo programado
-  if (estadoAutomatizacion.ejecutando) {
-    console.log('[Scheduler] ⏰ Se intentó iniciar ejecución programada pero ya hay otra en curso.');
-    return;
-  }
-
   try {
     console.log('═'.repeat(60));
-    console.log('[Scheduler] 🚀 Iniciando flujo completo de serie programado!');
+    console.log('[Scheduler] 🚀 Iniciando ejecución programada!');
     console.log('═'.repeat(60));
 
-    const { getPromptSiguiente, marcarReelCompletado } = await import('./series.js');
+    const { getPromptSiguiente } = await import('./series.js');
     const sig = await getPromptSiguiente();
-    const prompt = sig.prompt;
 
-    console.log(`[Scheduler] Prompt a usar: "${prompt}"`);
+    if (!sig || !sig.prompt) {
+      console.log('[Scheduler] ⚠️ No hay prompts disponibles en la serie actual.');
+      return;
+    }
 
-    const sessionDir = path.join(process.cwd(), 'sesiones', Date.now().toString());
-    if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
-
-    estadoAutomatizacion = {
-      ejecutando: true,
-      paso: 'Iniciando automatización programada',
-      progreso: 0,
-      historial: []
-    };
-    emitirEstado();
-
-    // 1. Qwen
-    const qwenUrl = config.qwenChatUrl;
-    const { generarGuion } = await import('./qwen.js');
-    const resultadoQwen = await generarGuion(prompt, sessionDir, qwenUrl, emitirEstado);
-
-    // 2. Veed
-    const { generarVideo } = await import('./veed.js');
-    const resultadoVeed = await generarVideo(resultadoQwen.guion, sessionDir, emitirEstado);
-
-    estadoAutomatizacion.ultimoVideo = {
-      url: resultadoVeed.url,
-      localUrl: resultadoVeed.localUrl,
-      fecha: new Date().toISOString()
-    };
-
-    // 3. Terminar
-    estadoAutomatizacion.ejecutando = false;
-    estadoAutomatizacion.paso = 'Completado';
-    estadoAutomatizacion.progreso = 100;
-    emitirEstado('success');
-
-    // 4. Avanzar Serie
-    await marcarReelCompletado();
-    console.log('[Scheduler] ✅ Reel programado completado y serie avanzada automáticamente.');
+    await ejecutarProcesoCompleto({
+      tema: sig.prompt,
+      esProgramado: true
+    });
 
   } catch (err) {
-    console.error('[Scheduler] ❌ Error en flujo programado:', err);
-    estadoAutomatizacion.ejecutando = false;
-    estadoAutomatizacion.paso = `Error: ${err.message}`;
-    emitirEstado('error');
+    console.error('[Scheduler] ❌ Error crítico en el disparador:', err);
   }
 });
 
