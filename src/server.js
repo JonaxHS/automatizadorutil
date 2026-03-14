@@ -22,7 +22,12 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer);
+const io = new Server(httpServer, {
+  cors: { origin: "*", methods: ["GET", "POST"] }
+});
+
+// Instancia global del Bot de Telegram para permitir reinicios
+let botTelegramActivo = null;
 
 // ─── Interceptar console para retransmitir logs al navegador ───────────────
 const _origLog = console.log.bind(console);
@@ -253,6 +258,18 @@ app.post('/api/config', (req, res) => {
     config.telegram.token = telegramToken;
     process.env.TELEGRAM_BOT_TOKEN = telegramToken;
     persistirVariableEnv('TELEGRAM_BOT_TOKEN', telegramToken);
+
+    // Reinicio dinámico del bot sin apagar el servidor
+    console.log('[Telegram] Reiniciando bot con nuevo token...');
+    if (botTelegramActivo) {
+      try {
+        botTelegramActivo.stopPolling();
+        console.log('[Telegram] Detenido polling del bot anterior.');
+      } catch (e) {
+        console.error('[Telegram] Error al detener el bot anterior:', e.message);
+      }
+    }
+    botTelegramActivo = iniciarBot(emitirEstado);
   }
 
   if (googleSheetUrl) {
@@ -276,7 +293,7 @@ app.post('/api/config', (req, res) => {
       telegramActivo: !!config.telegram.token
     },
     nota: (telegramToken)
-      ? 'El token de Telegram se guardara en .env. Reinicia el contenedor para activarlo.'
+      ? 'El token de Telegram se ha guardado y el bot se ha reiniciado.'
       : undefined
   });
 });
@@ -919,6 +936,6 @@ httpServer.listen(PORT, () => {
 });
 
 // Iniciar bot de Telegram (si hay token configurado)
-iniciarBot(emitirEstado);
+botTelegramActivo = iniciarBot(emitirEstado);
 
 export { app, io };
