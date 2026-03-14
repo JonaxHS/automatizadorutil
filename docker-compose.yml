@@ -19,6 +19,8 @@ services:
       - ./guiones:/app/guiones
       - ./videos:/app/public/videos
       - ./logs:/app/logs
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     restart: unless-stopped
     # Configuración de memoria y CPU para el contenedor
     deploy:

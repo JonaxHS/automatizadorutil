@@ -107,6 +107,11 @@ function checkSchedule() {
     const minutos = String(ahora.getMinutes()).padStart(2, '0');
     const horaActualStr = `${horas}:${minutos}`;
 
+    // Log periódico para debug (cada 5 minutos o si hay cambio de hora relevante)
+    if (ahora.getSeconds() < 30 && ahora.getMinutes() % 5 === 0) {
+        console.log(`[Scheduler Debug] Hora actual: ${horaActualStr}, Activo: ${isActive}, Programado: ${scheduleTimes.join(', ')}`);
+    }
+
     const fechaHoraActual = `${fechaActual} ${horaActualStr}`;
 
     // Si ya ejecutamos en esta combinación exacta de día y minuto, no hacer nada
