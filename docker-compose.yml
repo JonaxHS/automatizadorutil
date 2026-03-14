@@ -9,6 +9,7 @@ services:
       - NODE_ENV=production
       - HEADLESS=true
       - NOVNC_PORT=6080
+      - TZ=${TZ:-America/Mexico_City}
     env_file:
       - .env
     volumes:
