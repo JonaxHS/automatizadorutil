@@ -470,6 +470,9 @@ async function ejecutarProcesoCompleto({ tema, esProgramado = false }) {
     emitirEstado(`Iniciando automatización ${esProgramado ? 'programada' : 'manual'}...`, 0, 'info');
     guardarLog('inicio', `Automatización iniciada (${prefijo})`, { tema });
 
+    // Notificar inicio via Telegram
+    await notificarEvento(`🚀 *Iniciando automatización ${esProgramado ? 'programada' : 'manual'}*\n\n🎯 *Tema:* ${tema}`);
+
     // Crear carpetas necesarias
     const carpetas = ['screenshots', 'guiones', 'public/videos', 'logs', 'sesiones'];
     for (const carpeta of carpetas) {
@@ -534,7 +537,7 @@ async function ejecutarProcesoCompleto({ tema, esProgramado = false }) {
           emitirEstado(`[FB] ${msg}`, 95, 'info');
         });
         emitirEstado('Proceso de publicación en Facebook terminado.', 98, 'success');
-        
+
         // Notificar éxito via Telegram
         await notificarEvento(`✅ *¡Reel publicado con éxito!* \n\n📺 *Tema:* ${tema}\n📄 *Descripción:* ${truncar(textoPost, 200)}`);
       } catch (fbError) {
