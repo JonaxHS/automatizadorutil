@@ -471,7 +471,10 @@ async function ejecutarProcesoCompleto({ tema, esProgramado = false }) {
     guardarLog('inicio', `Automatización iniciada (${prefijo})`, { tema });
 
     // Notificar inicio via Telegram
-    await notificarEvento(`🚀 *Iniciando automatización ${esProgramado ? 'programada' : 'manual'}*\n\n🎯 *Tema:* ${tema}`);
+    const mensajeInicio = esProgramado
+      ? `⏰ *Iniciando Automatización Programada*\n\n🎯 *Tema:* ${tema}`
+      : `🚀 *Iniciando Automatización Manual*\n\n🎯 *Tema:* ${tema}`;
+    await notificarEvento(mensajeInicio);
 
     // Crear carpetas necesarias
     const carpetas = ['screenshots', 'guiones', 'public/videos', 'logs', 'sesiones'];
