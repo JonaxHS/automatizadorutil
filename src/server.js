@@ -14,7 +14,7 @@ import {
 } from './auth.js';
 import { subirReelAFacebook } from './facebook.js';
 import { config } from '../config.js';
-import { iniciarBot } from './telegram.js';
+import { iniciarBot, notificarEvento } from './telegram.js';
 import { getEstadoSeries, getPromptSiguiente, marcarReelCompletado, reiniciarProgreso } from './series.js';
 
 const __filename = fileURLToPath(import.meta.url);
