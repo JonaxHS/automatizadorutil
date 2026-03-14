@@ -326,3 +326,31 @@ export function iniciarBot(emitirEstado) {
         return null;
     }
 }
+
+/**
+ * Envía un mensaje proactivo al chat autorizado.
+ * @param {string} mensaje 
+ * @param {string} imagenPath (Opcional) Ruta local a una imagen
+ */
+export async function notificarEvento(mensaje, imagenPath = null) {
+    const chatId = cargarChatIdAutorizado();
+    if (!chatId || !config.telegram.token) return;
+
+    // Usamos una instancia temporal si no hay una activa o simplemente fetch
+    // Pero como server.js tiene la instancia, lo ideal es que server.js maneje la instancia.
+    // Para simplificar y no depender de estados globales complejos, usamos un bot temporal ligero para el envío
+    const botTransmisor = new TelegramBot(config.telegram.token);
+
+    try {
+        if (imagenPath && fs.existsSync(imagenPath)) {
+            await botTransmisor.sendPhoto(chatId, imagenPath, {
+                caption: mensaje,
+                parse_mode: 'Markdown'
+            });
+        } else {
+            await botTransmisor.sendMessage(chatId, mensaje, { parse_mode: 'Markdown' });
+        }
+    } catch (error) {
+        console.error('[Telegram Notify] Error enviando notificación:', error.message);
+    }
+}

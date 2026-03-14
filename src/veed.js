@@ -17,7 +17,7 @@ async function safeScreenshot(page, opts) {
  * Lanza un error especial si Veed muestra el modal de límite diario.
  * Texto de referencia: "You've Reached Your Daily Limit"
  */
-class LimiteVeedError extends Error {
+export class LimiteVeedError extends Error {
   constructor() {
     super('LIMITE_DIARIO_VEED: Has alcanzado el limite de videos por dia en Veed.io. Vuelve mañana o mejora tu plan.');
     this.name = 'LimiteVeedError';
@@ -34,7 +34,8 @@ async function checkLimiteVeed(page) {
       texto.includes('has alcanzado tu límite diario') ||
       texto.includes('limite diario')
     ) {
-      console.error('[VEED] Limite diario detectado. Deteniendo script.');
+      console.error('[VEED] Limite diario detectado. Guardando evidencia y deteniendo script.');
+      await safeScreenshot(page, { path: 'screenshots/veed-limit-reached.png', fullPage: true });
       throw new LimiteVeedError();
     }
   } catch (err) {

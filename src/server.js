@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { generarGuion } from './qwen.js';
-import { generarVideo } from './veed.js';
+import { generarVideo, LimiteVeedError } from './veed.js';
 import {
   cancelarSesionInteractivaWeb,
   finalizarSesionInteractivaWeb,
@@ -534,11 +534,18 @@ async function ejecutarProcesoCompleto({ tema, esProgramado = false }) {
           emitirEstado(`[FB] ${msg}`, 95, 'info');
         });
         emitirEstado('Proceso de publicación en Facebook terminado.', 98, 'success');
+        
+        // Notificar éxito via Telegram
+        await notificarEvento(`✅ *¡Reel publicado con éxito!* \n\n📺 *Tema:* ${tema}\n📄 *Descripción:* ${truncar(textoPost, 200)}`);
       } catch (fbError) {
         emitirEstado(`Error subiendo a Facebook: ${fbError.message}`, 95, 'error');
+        await notificarEvento(`⚠️ *Video generado pero fallback en Facebook:* ${fbError.message}\n📺 *Tema:* ${tema}`);
       }
     } else {
       emitirEstado('Omitiendo subida a Facebook (Falta Configuración o MP4)', 95, 'info');
+      if (localVideo) {
+        await notificarEvento(`✅ *Video generado localmente:* \`${path.basename(localVideo)}\`\n📺 *Tema:* ${tema}`);
+      }
     }
 
     estadoAutomatizacion.ultimoVideo = {
@@ -595,9 +602,22 @@ async function ejecutarProcesoCompleto({ tema, esProgramado = false }) {
     emitirEstado(`Error: ${error.message}`, estadoAutomatizacion.progreso, 'error');
     guardarLog('error', 'Error en automatización', { error: error.message });
 
+    // Notificar error via Telegram (especialmente si es Límite de Veed)
+    if (error instanceof LimiteVeedError) {
+      const screenshotPath = path.join(process.cwd(), 'screenshots', 'veed-limit-reached.png');
+      await notificarEvento(`❌ *Límite Diario Alcanzado en Veed.io*\n\nEl sistema se detuvo porque Veed ha bloqueado la generación por hoy. Se intentará de nuevo en el próximo horario programado.`, screenshotPath);
+    } else {
+      await notificarEvento(`❌ *Error en la automatización:* ${error.message}\n📺 *Tema:* ${tema}`);
+    }
+
   } finally {
     estadoAutomatizacion.ejecutando = false;
   }
+}
+
+function truncar(texto, max = 200) {
+  if (!texto || texto.length <= max) return texto || '';
+  return texto.substring(0, max) + '...';
 }
 
 // Obtener lista de guiones
